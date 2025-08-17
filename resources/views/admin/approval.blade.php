@@ -196,10 +196,10 @@
                                                     </tr>
                                                     <tr class="view-more-row" style="display: none;">
                                                         <td colspan="6">
-                                                            @if(is_array($expense['meta_data']))
+                                                            @if(is_array($expense['cleaned_meta_data'] ?? null))
                                                                 <strong>Description:</strong>
                                                                 <ul>
-                                                                    @foreach ($expense['meta_data'] as $key => $value)
+                                                                    @foreach ($expense['cleaned_meta_data'] as $key => $value)
                                                                         <li>
                                                                             <strong>{{ ucfirst(str_replace('_', ' ', $key)) }}:</strong>
                                                                             @if (is_array($value))
@@ -208,10 +208,10 @@
                                                                                 {{ $value }}
                                                                             @endif
                                                                         </li>
-
                                                                     @endforeach
                                                                 </ul>
                                                             @endif
+
                                                             <strong>User Remarks:</strong> {{ $expense['remarks'] ?? 'N/A' }}<br>
                                                             <strong>Approved By:</strong> {{ $expense['approved_by'] ?? 'N/A' }}<br>
                                                             <strong>Approved At:</strong> {{ $expense['approved_at'] ?? 'N/A' }}<br>

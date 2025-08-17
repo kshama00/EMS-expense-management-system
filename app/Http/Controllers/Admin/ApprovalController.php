@@ -14,8 +14,6 @@ class ApprovalController extends Controller
 {
     public function index(Request $request)
     {
-
-
         $typeMap = [
             'Travel' => 1,
             'Lodging' => 2,
@@ -30,7 +28,8 @@ class ApprovalController extends Controller
         $hq = $request->input('hq');
         $type = $request->input('type');
 
-        $query = Expense::with(['images', 'user'])
+        // Load user and approver relationships
+        $query = Expense::with(['images', 'user', 'approver']) // Added 'approver' relationship
             ->where('status', '!=', 5);
 
         if ($month) {
@@ -52,6 +51,25 @@ class ApprovalController extends Controller
         }
 
         $expenses = $query->get();
+
+        // Transform expenses to clean meta_data and add user/approver names
+        $expenses = $expenses->map(function ($expense) {
+            // Clean meta_data by removing Resubmitted_expense_ids
+            $cleanMetaData = collect($expense->meta_data ?? [])
+                ->except(['Resubmitted_expense_ids'])
+                ->toArray();
+
+            // Create a new expense object with cleaned data
+            $expense->cleaned_meta_data = $cleanMetaData;
+
+            // Add user name for display
+            $expense->user_name = $expense->user ? $expense->user->name : 'Unknown User';
+
+            // Add approver name for display
+            $expense->approver_name = $expense->approver ? $expense->approver->name : null;
+
+            return $expense;
+        });
 
         // Only group if no type or status is applied
         $groupedExpenses = (!$type && !$status)
@@ -101,9 +119,9 @@ class ApprovalController extends Controller
 
         $firstExpense = $expenses->first();
 
-        if ($firstExpense && $firstExpense->$date) {
+        if ($firstExpense && $firstExpense->date) { // Fixed: removed extra $date variable
             $submittedAt = \Carbon\Carbon::parse($firstExpense->date);
-            $editableUntil = $date->copy()->addMonth()->startOfMonth()->addDays(4);
+            $editableUntil = $submittedAt->copy()->addMonth()->startOfMonth()->addDays(4); // Fixed: use $submittedAt instead of $date
 
             if (now()->gt($editableUntil)) {
                 $canEditApproval = false;
@@ -115,23 +133,34 @@ class ApprovalController extends Controller
 
     public function bulkUpdate(Request $request)
     {
+        // Updated status mapping with consistent naming
         $statusMap = [
             'Pending' => 1,
             'Approved' => 2,
             'Rejected' => 3,
             'Partially_Approved' => 4,
-            'approve' => 2,              // ensure lower-case matches
+            'approve' => 2,          // Maps to approved
             'approved' => 2,
-            'reject' => 3,
+            'reject' => 3,           // Maps to rejected
             'rejected' => 3,
             'pending' => 1,
             'partially approve' => 4,
             'partially_approved' => 4,
         ];
 
+        // Status code to name mapping for consistent response
+        $statusNames = [
+            1 => 'Pending',
+            2 => 'Approved',
+            3 => 'Rejected',
+            4 => 'Partially Approved',
+            5 => 'Cancelled'
+        ];
+
         $expenses = $request->input('expenses', []);
         $updatedCount = 0;
         $errors = [];
+        $updatedExpenses = []; // Track updated expenses with their new status names
 
         foreach ($expenses as $item) {
             try {
@@ -170,6 +199,13 @@ class ApprovalController extends Controller
 
                 if ($expense->save()) {
                     $updatedCount++;
+                    // Add the expense with its proper status name for frontend update
+                    $updatedExpenses[] = [
+                        'id' => $expense->id,
+                        'status_code' => $newStatus,
+                        'status_name' => $statusNames[$newStatus],
+                        'approved_amount' => $expense->approved_amount
+                    ];
                 } else {
                     $errors[] = "Failed to save expense ID {$item['id']}";
                 }
@@ -184,12 +220,12 @@ class ApprovalController extends Controller
             'success' => $updatedCount > 0,
             'updated' => $updatedCount,
             'errors' => $errors,
+            'updated_expenses' => $updatedExpenses, // Include updated expenses with proper status names
             'message' => $updatedCount > 0
                 ? 'Expenses updated successfully'
                 : 'No expenses were updated'
         ]);
     }
-
 
     public function checkStatus($id)
     {
@@ -210,7 +246,7 @@ class ApprovalController extends Controller
                     1 => 'Pending',
                     2 => 'Approved',
                     3 => 'Rejected',
-                    4 => 'Partially approved',
+                    4 => 'Partially Approved',
                     5 => 'Cancelled'
                 ];
 
@@ -254,9 +290,9 @@ class ApprovalController extends Controller
 
     public function updateStatus(Request $request)
     {
-
         return $this->bulkUpdate($request);
     }
+
     public static function getStatusInfo($statusCode)
     {
         $statusMap = [

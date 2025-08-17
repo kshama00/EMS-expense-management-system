@@ -28,9 +28,9 @@ class Expense extends Model
     protected $casts = [
         'meta_data' => 'array',
         'approved_at' => 'datetime',
-        'date' => 'date',
-    ];
+        'date' => 'date:Y-m-d',
 
+    ];
     // Relationship: An expense has many images
     public function images()
     {

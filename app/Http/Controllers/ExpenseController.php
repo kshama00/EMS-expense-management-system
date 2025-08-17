@@ -23,6 +23,39 @@ class ExpenseController extends Controller
             ->whereBetween('date', [$startOfMonth, $endOfMonth])
             ->sum('amount');
 
+        $hasMobile = Expense::where('user_id', $userId)
+            ->where('type', '5')
+            ->whereBetween('date', [$startOfMonth, $endOfMonth])
+            ->exists();
+
+        // ENHANCED: Get existing expenses for duplicate checking with more details
+        $existingExpenses = Expense::where('user_id', $userId)
+            ->whereBetween('date', [$startOfMonth, $endOfMonth])
+            ->where('status', '!=', '5') // Exclude cancelled expenses
+            ->orderBy('date', 'desc')
+            ->get()
+            ->map(function ($expense) {
+                $types = [
+                    1 => 'Travel',
+                    2 => 'Lodging',
+                    3 => 'Food',
+                    4 => 'Printing',
+                    5 => 'Mobile',
+                    6 => 'Miscellaneous',
+                ];
+
+                return [
+                    'id' => $expense->id,
+                    'type' => $types[$expense->type] ?? 'Unknown',
+                    'amount' => (float) $expense->amount, // Ensure it's a float for JS comparison
+                    'date' => $expense->date,
+                    'status' => $expense->status,
+                    'status_name' => $expense->statusName(),
+                    'location' => $expense->location,
+                    'remarks' => $expense->remarks,
+                ];
+            });
+
         $maxLimit = 6250;
         $remaining = $maxLimit - $usedAmount;
 
@@ -61,13 +94,12 @@ class ExpenseController extends Controller
             }
         }
 
-        return view('expenses.create', compact('usedAmount', 'maxLimit', 'remaining', 'prefillExpense', 'resubmitId'));
+        return view('expenses.create', compact('usedAmount', 'maxLimit', 'remaining', 'prefillExpense', 'resubmitId', 'hasMobile', 'existingExpenses'));
     }
 
 
     public function store(Request $request)
     {
-
         $expenses = $request->input('expenses', []);
         if (empty($expenses)) {
             return redirect()->back()->with('error', 'No expense data found.');
@@ -82,9 +114,13 @@ class ExpenseController extends Controller
             'Miscellaneous' => 6,
         ];
 
+        // NEW: Check for duplicates before processing
+        $userId = auth()->id() ?? 1;
+        $startOfMonth = Carbon::now()->startOfMonth();
+        $endOfMonth = Carbon::now()->endOfMonth();
+
         foreach ($expenses as $index => $expenseData) {
             $validator = Validator::make($expenseData, [
-
                 'date' => 'required|date',
                 'type' => 'required|string',
                 'location' => 'required|string',
@@ -107,35 +143,85 @@ class ExpenseController extends Controller
                     ->withInput();
             }
 
+            // NEW: Server-side duplicate check (additional safety net)
+            $typeId = $typeMap[$expenseData['type']] ?? null;
+            $originalId = $request->input('original_expense_id');
+
+            if ($typeId) {
+                $duplicateQuery = Expense::where('user_id', $userId)
+                    ->where('type', $typeId)
+                    ->where('amount', $expenseData['amount'])
+                    ->where('date', $expenseData['date'])
+                    ->where('status', '!=', '5'); // Exclude cancelled
+
+                // Exclude the original expense if this is a resubmission
+                if ($originalId) {
+                    $duplicateQuery->where('id', '!=', $originalId);
+                }
+
+                $duplicateExists = $duplicateQuery->exists();
+
+                if ($duplicateExists) {
+                    return redirect()->back()
+                        ->withErrors(["expenses.$index" => "A similar expense entry already exists with the same type, amount, and date."])
+                        ->withInput();
+                }
+            }
+
+            // Additional validation for lodging dates
+            if ($expenseData['type'] === 'Lodging') {
+                $globalDate = $expenseData['date'];
+                $checkinDate = $expenseData['checkin_date'] ?? null;
+                $checkoutDate = $expenseData['checkout_date'] ?? null;
+
+                // Validate checkin date is same as global date
+                if ($checkinDate !== $globalDate) {
+                    return redirect()->back()
+                        ->withErrors(["expenses.$index.checkin_date" => "Check-in date must be same as expense date"])
+                        ->withInput();
+                }
+
+                // Validate checkout date is same or +1 day
+                if ($checkoutDate) {
+                    $globalDateObj = Carbon::parse($globalDate);
+                    $checkoutDateObj = Carbon::parse($checkoutDate);
+                    $maxCheckoutDate = $globalDateObj->copy()->addDay();
+
+                    if ($checkoutDateObj->lt($globalDateObj) || $checkoutDateObj->gt($maxCheckoutDate)) {
+                        return redirect()->back()
+                            ->withErrors(["expenses.$index.checkout_date" => "Check-out date can only be same as check-in date or one day later"])
+                            ->withInput();
+                    }
+                }
+            }
+
             $originalId = $request->input('original_expense_id');
             $meta = [];
 
             if ($originalId) {
-                // Find original expense with its images
                 $originalExpense = Expense::with('images')->find($originalId);
 
                 if ($originalExpense) {
-                    // Store complete previous expense data
-                    $meta['resubmitted_from'] = $originalId;
-                    $meta['previous_expense'] = [
-                        'id' => $originalExpense->id,
-                        'date' => $originalExpense->date,
-                        'type' => $originalExpense->typeName(), // Get type name instead of ID
-                        'location' => $originalExpense->location,
-                        'amount' => $originalExpense->amount,
-                        'remarks' => $originalExpense->remarks,
-                        'meta_data' => $originalExpense->meta_data,
-                        'status' => $originalExpense->statusName(), // Get status name
-                        'images' => $originalExpense->images->pluck('path')->toArray(),
-                        'created_at' => $originalExpense->created_at,
-                    ];
+                    $resubmittedIds = [];
 
-                    // Cancel the original expense
-                    $originalExpense->status = 5; // Cancelled
+                    if (
+                        isset($originalExpense->meta_data['Resubmitted_expense_ids']) &&
+                        is_array($originalExpense->meta_data['Resubmitted_expense_ids'])
+                    ) {
+                        $resubmittedIds = $originalExpense->meta_data['Resubmitted_expense_ids'];
+                    }
+
+                    if (!in_array($originalId, $resubmittedIds)) {
+                        $resubmittedIds[] = $originalId;
+                    }
+
+                    $meta['Resubmitted_expense_ids'] = $resubmittedIds;
+
+                    // Cancel original
+                    $originalExpense->status = 5;
                     $originalExpense->save();
                 }
             }
-
 
             $amount = $expenseData['amount'];
             $type = $typeMap[$expenseData['type']] ?? null;
@@ -197,6 +283,82 @@ class ExpenseController extends Controller
         return redirect()->back()->with('success', 'Expenses saved successfully.');
     }
 
+    /**
+     * NEW: API endpoint for real-time duplicate checking
+     */
+    public function checkDuplicate(Request $request)
+    {
+        $request->validate([
+            'type' => 'required|string',
+            'amount' => 'required|numeric',
+            'date' => 'required|date',
+            'exclude_id' => 'nullable|integer' // For resubmission cases
+        ]);
+
+        $typeMap = [
+            'Travel' => 1,
+            'Lodging' => 2,
+            'Food' => 3,
+            'Printing' => 4,
+            'Mobile' => 5,
+            'Miscellaneous' => 6,
+        ];
+
+        $typeId = $typeMap[$request->type] ?? null;
+        if (!$typeId) {
+            return response()->json(['duplicate' => false]);
+        }
+
+        $userId = auth()->id() ?? 1;
+        $query = Expense::where('user_id', $userId)
+            ->where('type', $typeId)
+            ->where('amount', $request->amount)
+            ->where('date', $request->date)
+            ->where('status', '!=', '5'); // Exclude cancelled
+
+        if ($request->exclude_id) {
+            $query->where('id', '!=', $request->exclude_id);
+        }
+
+        $duplicate = $query->first();
+
+        if ($duplicate) {
+            return response()->json([
+                'duplicate' => true,
+                'expense' => [
+                    'id' => $duplicate->id,
+                    'type' => $request->type,
+                    'amount' => $duplicate->amount,
+                    'date' => $duplicate->date,
+                    'status' => $duplicate->statusName(),
+                    'location' => $duplicate->location,
+                    'remarks' => $duplicate->remarks,
+                ]
+            ]);
+        }
+
+        return response()->json(['duplicate' => false]);
+    }
+
+    /**
+     * Build the complete history chain for an expense
+     */
+    private function buildHistoryChain($currentExpense)
+    {
+        $historyChain = [];
+
+        // If current expense has history, use it
+        if (isset($currentExpense->meta_data['history']) && is_array($currentExpense->meta_data['history'])) {
+            foreach ($currentExpense->meta_data['history'] as $index => $historyItem) {
+                $historyItem['version'] = $index + 1; // Renumber starting from 1
+                $historyChain[] = $historyItem;
+            }
+        }
+
+        return $historyChain;
+    }
+
+
     public function index(Request $request)
     {
         $userId = 1;
@@ -239,6 +401,7 @@ class ExpenseController extends Controller
 
         $expenses = $query->with(['images', 'approver'])
             ->orderBy('date', 'desc')
+            ->where('status', '!=', '5')
             ->get();
 
         $grouped = $expenses->groupBy(function ($item) {
@@ -261,6 +424,12 @@ class ExpenseController extends Controller
                 'approved' => $approved,
                 'status' => $statusName,
                 'expenses' => $items->map(function ($expense) {
+                    // Copy meta_data but remove Resubmitted_expense_ids before sending to view
+                    $metaData = $expense->meta_data ?? [];
+
+                    // Remove it from the data you pass to view (so it doesn't show in UI)
+                    unset($metaData['Resubmitted_expense_ids']);
+
                     return [
                         'id' => $expense->id,
                         'type' => $expense->typeName(),
@@ -268,11 +437,37 @@ class ExpenseController extends Controller
                         'approved_amount' => $expense->approved_amount,
                         'status' => $expense->statusName(),
                         'images' => $expense->images,
-                        'meta_data' => $expense->meta_data ?? [],
+                        'meta_data' => collect($expense->meta_data ?? [])
+                            ->except(['Resubmitted_expense_ids'])
+                            ->toArray(),
                         'remarks' => $expense->remarks,
                         'approved_by' => $expense->approver->name ?? null,
                         'approved_at' => $expense->approved_at,
                         'admin_comment' => $expense->admin_comment,
+                        'has_history' => isset($expense->meta_data['Resubmitted_expense_ids']) && !empty($expense->meta_data['Resubmitted_expense_ids']),
+                        'history' => isset($expense->meta_data['Resubmitted_expense_ids'])
+                            ? Expense::with('images')
+                                ->whereIn('id', $expense->meta_data['Resubmitted_expense_ids'])
+                                ->get()
+                                ->map(function ($exp) {
+                                    return [
+                                        'id' => $exp->id,
+                                        'date' => $exp->date,
+                                        'type' => $exp->typeName(),
+                                        'amount' => $exp->amount,
+                                        'status' => $exp->statusName(),
+                                        'remarks' => $exp->remarks,
+                                        'meta_data' => collect($exp->meta_data ?? [])
+                                            ->except(['history', 'Resubmitted_expense_ids']) // 🚀 also remove from history results
+                                            ->toArray(),
+                                        'images' => $exp->images->map(function ($img) {
+                                            return ['path' => $img->path];
+                                        })->toArray(),
+                                        'location' => $exp->location,
+                                    ];
+                                })
+                                ->toArray()
+                            : []
                     ];
                 }),
             ];

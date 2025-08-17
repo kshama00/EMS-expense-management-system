@@ -19,10 +19,11 @@ use App\Http\Controllers\Admin\HeadquarterController;
 |
 */
 
-Route::get('/', function () {
-    return view('welcome');
-});
+// Route::get('/', function () {
+//     return view('welcome');
+// });
 
+Route::get('/', [ExpenseSummaryController::class, 'index'])->name('expenses.summary');
 
 Route::get('/expenses/create', [ExpenseController::class, 'create'])->name('expenses.create');
 Route::get('/expenses/view', [ExpenseController::class, 'index'])->name('expenses.view');
@@ -35,7 +36,7 @@ Route::get('/admin/expenses/check-status/{id}', [ApprovalController::class, 'che
 Route::post('/admin/expenses/bulk-update', [ApprovalController::class, 'bulkUpdate'])->name('expenses.bulk-update');
 Route::post('/admin/expenses/update-status', [ApprovalController::class, 'updateStatus'])->name('expenses.update-status');
 Route::post('/admin/expenses/approval/{expense}', [ApprovalController::class, 'updateApproval'])->name('expenses.update');
-Route::get('/expenses/summary', [ExpenseSummaryController::class, 'index'])->name('expenses.summary');
+Route::post('/expenses/check-duplicate', [ExpenseController::class, 'checkDuplicate'])->name('expenses.check-duplicate');
 
 
 

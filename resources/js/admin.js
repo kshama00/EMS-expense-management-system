@@ -182,115 +182,102 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Function to handle partial approval with custom amounts
+    // Function to handle partial approval with custom amount
+    // Function to handle partial approval with custom amount
     async function handlePartialApproval(selectedExpenses) {
-        let expenseInputs = '';
+        // Enforce only one expense at a time
+        if (selectedExpenses.length !== 1) {
+            Swal.fire({
+                icon: "warning",
+                title: "Invalid Selection",
+                text: "You can only partially approve one expense at a time."
+            });
+            return;
+        }
 
-        selectedExpenses.forEach(expense => {
-            expenseInputs += `
-                <div class="swal2-input-group" style="margin-bottom: 15px;">
-                    <label style="display: block; text-align: left; margin-bottom: 5px;">
-                        Expense ID: ${expense.id} (Submitted: ₹${expense.submittedAmount})
-                    </label>
-                    <input type="number" id="approved_amount_${expense.id}" 
-                           placeholder="Enter approved amount" 
-                           max="${expense.submittedAmount}" 
-                           min="0" step="0.01" 
-                           class="swal2-input" style="margin: 0;">
-                </div>
-            `;
-        });
+        const expense = selectedExpenses[0];
 
         const { value: formValues } = await Swal.fire({
             title: 'Partial Approval',
             html: `
-                <div style="text-align: left;">
-                    ${expenseInputs}
-                    <div style="margin-top: 15px;">
-                        <label style="display: block; margin-bottom: 5px;">Admin Comment:</label>
-                        <textarea id="admin_comment" placeholder="Enter comment (optional)" 
-                                class="swal2-textarea"></textarea>
-                    </div>
+            <div style="text-align: left;">
+                <label style="display: block; margin-bottom: 5px;">
+                    Submitted Amount: ₹${expense.submittedAmount}
+                </label>
+                <input type="number" id="approved_amount_${expense.id}" 
+                       placeholder="Enter approved amount" 
+                       max="${expense.submittedAmount}" 
+                       min="0" step="0.01" 
+                       class="swal2-input" style="margin: 0;">
+
+                <div style="margin-top: 15px;">
+                    <label style="display: block; margin-bottom: 5px;">Admin Comment:</label>
+                    <textarea id="admin_comment" placeholder="Enter comment (optional)" 
+                              class="swal2-textarea"></textarea>
                 </div>
-            `,
+            </div>
+        `,
             focusConfirm: false,
             showCancelButton: true,
-            confirmButtonText: 'Update Expenses',
+            confirmButtonText: 'Update Expense',
             cancelButtonText: 'Cancel',
             preConfirm: () => {
+                const approvedAmount = parseFloat(document.getElementById(`approved_amount_${expense.id}`).value);
                 const comment = document.getElementById('admin_comment').value;
-                let expenses = [];
-                let hasError = false;
 
-                selectedExpenses.forEach(expense => {
-                    const approvedAmount = parseFloat(document.getElementById(`approved_amount_${expense.id}`).value);
+                if (isNaN(approvedAmount) || approvedAmount < 0) {
+                    Swal.showValidationMessage('Please enter a valid approved amount');
+                    return false;
+                }
 
-                    if (isNaN(approvedAmount) || approvedAmount < 0) {
-                        Swal.showValidationMessage('Please enter valid approved amounts for all expenses');
-                        hasError = true;
-                        return;
-                    }
+                if (approvedAmount > expense.submittedAmount) {
+                    Swal.showValidationMessage('Approved amount cannot exceed submitted amount');
+                    return false;
+                }
 
-                    if (approvedAmount > expense.submittedAmount) {
-                        Swal.showValidationMessage('Approved amount cannot exceed submitted amount');
-                        hasError = true;
-                        return;
-                    }
-
-                    expenses.push({
-                        id: expense.id,
-                        approved_amount: approvedAmount,
-                        status: 'partially_approved',
-                        admin_comment: comment
-                    });
-                });
-
-                return hasError ? false : expenses;
+                return [{
+                    id: expense.id,
+                    approved_amount: approvedAmount,
+                    status: 'partially_approved',
+                    admin_comment: comment
+                }];
             }
         });
 
         if (formValues) {
-            // Check status for each expense before updating
-            let validExpenses = [];
+            // Check latest status before update
+            const statusCheck = await checkExpenseStatus(expense.id);
 
-            for (let expense of formValues) {
-                const statusCheck = await checkExpenseStatus(expense.id);
-
-                if (statusCheck.status === 'Cancelled') {
-                    Swal.fire({
-                        icon: "warning",
-                        title: "Action Blocked",
-                        text: `Expense ${expense.id}: ${statusCheck.message}`
-                    });
-                    continue;
-                }
-
-                if (statusCheck.status === 'ok') {
-                    validExpenses.push(expense);
-                }
+            if (statusCheck.status === 'blocked') {
+                Swal.fire({
+                    icon: "warning",
+                    title: "Action Blocked",
+                    text: statusCheck.message
+                });
+                return;
             }
 
-            if (validExpenses.length > 0) {
-                const updateResult = await updateExpenseStatus(validExpenses);
+            const updateResult = await updateExpenseStatus(formValues);
 
-                if (updateResult.success || updateResult.message === 'Expenses updated successfully') {
-                    Swal.fire({
-                        icon: "success",
-                        title: "Updated!",
-                        text: "Expenses partially approved successfully."
-                    });
+            if (updateResult.success || updateResult.message === 'Expenses updated successfully') {
+                Swal.fire({
+                    icon: "success",
+                    title: "Updated!",
+                    text: "Expense partially approved successfully."
+                });
 
-                    updateExpenseRowsInUI(validExpenses);
-                } else {
-                    Swal.fire({
-                        icon: "error",
-                        title: "Error",
-                        text: updateResult.message || "Something went wrong."
-                    });
-                }
+                updateExpenseRowsInUI(formValues);
+            } else {
+                Swal.fire({
+                    icon: "error",
+                    title: "Error",
+                    text: updateResult.message || "Something went wrong."
+                });
             }
         }
     }
+
+
 
     // Function to update UI after successful update
     function updateExpenseRowsInUI(updatedExpenses) {
@@ -302,15 +289,35 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Update status
                 const statusCell = row.querySelector('.expense-status');
                 if (statusCell) {
-                    let statusText = expense.status.replace('_', ' ');
-                    statusText = statusText.charAt(0).toUpperCase() + statusText.slice(1);
+                    let statusText = expense.status;
+
+                    // Map actions to past tense labels
+                    switch (statusText) {
+                        case 'approve':
+                            statusText = 'Approved';
+                            break;
+                        case 'reject':
+                            statusText = 'Rejected';
+                            break;
+                        case 'pending':
+                            statusText = 'Pending';
+                            break;
+                        case 'partially approve':
+                        case 'partially_approved':
+                            statusText = 'Partially Approved';
+                            break;
+                    }
+
                     statusCell.textContent = statusText;
                 }
 
                 // Update approved amount
                 const approvedAmountCell = row.querySelector('.approved-amount');
                 if (approvedAmountCell && expense.approved_amount !== undefined) {
-                    approvedAmountCell.textContent = `₹${expense.approved_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                    approvedAmountCell.textContent = `₹${expense.approved_amount.toLocaleString('en-IN', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    })}`;
                 }
 
                 // Uncheck the checkbox
@@ -318,6 +325,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     }
+
 
     // Handle action dropdown changes
     document.querySelectorAll('.action-select-global').forEach(function (dropdown) {

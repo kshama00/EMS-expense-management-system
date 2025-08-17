@@ -4,6 +4,155 @@ document.addEventListener("DOMContentLoaded", function () {
     const expenseRows = document.getElementById("expense-rows");
     const form = document.querySelector("form");
 
+    // Enhanced Duplicate Check System - SIMPLIFIED VERSION
+    function attachDuplicateListeners(row) {
+        const typeSelect = row.querySelector("select[name*='[type]']");
+        const amountInput = row.querySelector("input[name*='[amount]']");
+        const globalDateInput = document.getElementById("global-date");
+
+        let isCheckingDuplicate = false; // Prevent multiple simultaneous checks
+
+        // Function to check for duplicates
+        function checkDuplicateEntry(row, showWarning = true) {
+            const type = row.querySelector("select[name*='[type]']")?.value;
+            const amount = parseFloat(row.querySelector("input[name*='[amount]']")?.value);
+            const globalDate = globalDateInput?.value;
+
+            // Skip check if any required field is empty or already checking
+            if (!type || !amount || isNaN(amount) || !globalDate || isCheckingDuplicate) {
+                return Promise.resolve(true);
+            }
+
+            // Check for duplicates in the current form (other rows)
+            const formDuplicate = checkFormDuplicates(row, type, amount, globalDate);
+
+            if (formDuplicate && showWarning) {
+                return showSimpleDuplicateWarning('form');
+            }
+
+            // Check database duplicates via AJAX only if no form duplicate
+            if (!formDuplicate) {
+                return checkDatabaseDuplicates(type, amount, globalDate, showWarning);
+            }
+
+            return Promise.resolve(true);
+        }
+
+        // Check for duplicates within the current form
+        function checkFormDuplicates(currentRow, type, amount, date) {
+            const allRows = document.querySelectorAll('.expense-row');
+
+            for (let row of allRows) {
+                if (row === currentRow) continue; // Skip the current row
+
+                const rowType = row.querySelector("select[name*='[type]']")?.value;
+                const rowAmount = parseFloat(row.querySelector("input[name*='[amount]']")?.value);
+
+                if (rowType === type && rowAmount === amount) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Check database for duplicates - SIMPLIFIED
+        function checkDatabaseDuplicates(type, amount, date, showWarning = true) {
+            if (isCheckingDuplicate) return Promise.resolve(true);
+
+            isCheckingDuplicate = true;
+            const originalId = window?.resubmitData?.id || null;
+
+            return fetch('/expenses/check-duplicate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                },
+                body: JSON.stringify({
+                    type: type,
+                    amount: amount,
+                    date: date,
+                    exclude_id: originalId
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    isCheckingDuplicate = false;
+
+                    if (data.duplicate && showWarning) {
+                        return showSimpleDuplicateWarning('database');
+                    }
+                    return !data.duplicate;
+                })
+                .catch(error => {
+                    isCheckingDuplicate = false;
+                    console.error('Duplicate check error:', error);
+                    return true; // Allow submission on error
+                });
+        }
+
+        // SIMPLIFIED duplicate warning popup
+        function showSimpleDuplicateWarning(source) {
+            return new Promise((resolve) => {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Duplicate Entry Detected',
+                    text: `A duplicate entry with the same type, date and amount already exists ${source === 'form' ? 'in this form' : 'in the database'}. Do you want to continue?`,
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, Continue',
+                    cancelButtonText: 'No, Let me change',
+                    allowOutsideClick: false,
+                }).then((result) => {
+                    if (!result.isConfirmed) {
+                        // Clear the fields if user chooses not to continue
+                        const typeSelect = row.querySelector("select[name*='[type]']");
+                        const amountInput = row.querySelector("input[name*='[amount]']");
+                        if (typeSelect) typeSelect.value = '';
+                        if (amountInput) amountInput.value = '';
+                    }
+                    resolve(result.isConfirmed);
+                });
+            });
+        }
+
+        // Add event listeners with debouncing
+        let duplicateCheckTimeout;
+
+        function debouncedDuplicateCheck() {
+            clearTimeout(duplicateCheckTimeout);
+            duplicateCheckTimeout = setTimeout(() => {
+                checkDuplicateEntry(row, true);
+            }, 800); // Increased delay to prevent multiple checks
+        }
+
+        // Attach listeners to relevant fields
+        if (typeSelect) {
+            typeSelect.addEventListener('change', debouncedDuplicateCheck);
+        }
+
+        if (amountInput) {
+            amountInput.addEventListener('blur', debouncedDuplicateCheck);
+            // Removed input listener to prevent too frequent checks
+        }
+
+        // Also check when global date changes
+        if (globalDateInput) {
+            const globalDateChangeHandler = () => {
+                clearTimeout(duplicateCheckTimeout);
+                setTimeout(debouncedDuplicateCheck, 200);
+            };
+
+            // Remove existing listener to avoid duplicates
+            globalDateInput.removeEventListener('change', globalDateChangeHandler);
+            globalDateInput.addEventListener('change', globalDateChangeHandler);
+        }
+
+        // Store the check function for external use
+        row._duplicateChecker = checkDuplicateEntry;
+
+        return checkDuplicateEntry;
+    }
+
     // Save form data to localStorage
     function saveFormData() {
         const formData = {
@@ -90,13 +239,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // Add dynamic required attributes based on type/subtype selection
         if (type === "Travel") {
-
             if (subtypeSelect) subtypeSelect.setAttribute('required', 'true');
 
             if (subtype === "2_wheeler") {
                 if (startReadingInput) startReadingInput.setAttribute('required', 'true');
                 if (endReadingInput) endReadingInput.setAttribute('required', 'true');
-            } else if (["Bus", "Car", "Train"].includes(subtype)) {
+            } else if (subtype === "bus" || subtype === "car" || subtype === "train") {
                 if (fromLocationInput) fromLocationInput.setAttribute('required', 'true');
                 if (toLocationInput) toLocationInput.setAttribute('required', 'true');
             }
@@ -106,57 +254,180 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
+    function validateMobileSelection(row) {
+        const typeSelect = row.querySelector("select[name*='[type]']");
+
+        if (typeSelect) {
+            typeSelect.addEventListener('change', function () {
+                if (this.value === 'Mobile') {
+                    // Check if mobile already exists in database
+                    if (window.hasMobile) {
+                        const isResubmission = window.resubmitData && window.resubmitData.type === 'Mobile';
+
+                        if (!isResubmission) {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Mobile Expense Already Exists',
+                                text: 'You have already submitted a Mobile expense for this month. Only one Mobile expense is allowed per month.',
+                            });
+                            this.value = ''; // Reset the selection
+                            return;
+                        }
+                    }
+
+                    // Check if another Mobile type is already selected in current form
+                    const otherMobileRows = document.querySelectorAll('.expense-row select[name*="[type]"]');
+                    let mobileCount = 0;
+
+                    otherMobileRows.forEach(select => {
+                        if (select.value === 'Mobile') {
+                            mobileCount++;
+                        }
+                    });
+
+                    if (mobileCount > 1) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Multiple Mobile Entries',
+                            text: 'Only one Mobile expense is allowed per month. Please remove the other Mobile entry first.',
+                        });
+                        this.value = ''; // Reset the selection
+                        return;
+                    }
+                }
+
+                // Check for duplicates when type changes (with delay to allow amount to be entered)
+                setTimeout(() => {
+                    if (row._duplicateChecker) {
+                        row._duplicateChecker(row, true);
+                    }
+                }, 100);
+            });
+        }
+    }
+
+    // Handle lodging date restrictions
+    function handleLodgingDates(row) {
+        const typeSelect = row.querySelector("select[name*='[type]']");
+        const checkinInput = row.querySelector("input[name*='[checkin_date]']");
+        const checkoutInput = row.querySelector("input[name*='[checkout_date]']");
+        const globalDate = document.getElementById("global-date")?.value;
+
+        if (!typeSelect || !checkinInput || !checkoutInput || !globalDate) return;
+
+        function updateLodgingDates() {
+            if (typeSelect.value === "Lodging") {
+                // Set checkin date to global date and make it readonly
+                checkinInput.value = globalDate;
+                checkinInput.readOnly = true;
+                checkinInput.style.backgroundColor = '#f8f9fa';
+
+                // Set checkout date restrictions
+                checkoutInput.readOnly = false;
+                checkoutInput.style.backgroundColor = '';
+
+                // Set min and max for checkout date (same day or +1 day)
+                const globalDateObj = new Date(globalDate);
+                const nextDay = new Date(globalDateObj);
+                nextDay.setDate(globalDateObj.getDate() + 1);
+
+                checkoutInput.min = globalDate;
+                checkoutInput.max = nextDay.toISOString().split('T')[0];
+
+                // If checkout is empty or invalid, set it to checkin date
+                if (!checkoutInput.value || checkoutInput.value < globalDate || checkoutInput.value > nextDay.toISOString().split('T')[0]) {
+                    checkoutInput.value = globalDate;
+                }
+            } else {
+                // Reset lodging date restrictions for non-lodging types
+                checkinInput.readOnly = false;
+                checkinInput.style.backgroundColor = '';
+                checkoutInput.readOnly = false;
+                checkoutInput.style.backgroundColor = '';
+                checkinInput.removeAttribute('min');
+                checkinInput.removeAttribute('max');
+                checkoutInput.removeAttribute('min');
+                checkoutInput.removeAttribute('max');
+            }
+        }
+
+        typeSelect.addEventListener('change', updateLodgingDates);
+
+        // Also add validation for checkout date changes
+        checkoutInput.addEventListener('change', function () {
+            if (typeSelect.value === "Lodging") {
+                const globalDateObj = new Date(globalDate);
+                const nextDay = new Date(globalDateObj);
+                nextDay.setDate(globalDateObj.getDate() + 1);
+                const selectedDate = new Date(this.value);
+
+                if (selectedDate < globalDateObj || selectedDate > nextDay) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Invalid Checkout Date',
+                        text: 'For lodging expenses, checkout date can only be the same as check-in date or one day later.',
+                    });
+                    this.value = globalDate; // Reset to checkin date
+                }
+            }
+        });
+
+        // Run initially
+        updateLodgingDates();
+    }
+
     // Handle type changes
     function handleTypeChange(row) {
         const typeSelect = row.querySelector("select[name*='[type]']");
         const subtypeSelect = row.querySelector("select[name*='[subtype]']");
+        const amountInput = row.querySelector("input[name*='[amount]']");
         const lodgingFields = row.querySelectorAll(".lodging");
         const travelFields = row.querySelectorAll(".travel");
         const twoWheelerFields = row.querySelectorAll(".twoWheeler");
         const fourWheelerFields = row.querySelectorAll(".fourWheeler");
-        const amountInput = row.querySelector("input[name*='[amount]']");
 
         function toggleFields() {
             const type = typeSelect?.value;
             const subtype = subtypeSelect?.value;
 
-            // Hide all fields first
             lodgingFields.forEach(el => el.style.display = "none");
             travelFields.forEach(el => el.style.display = "none");
             twoWheelerFields.forEach(el => el.style.display = "none");
             fourWheelerFields.forEach(el => el.style.display = "none");
 
-            // Handle Mobile type amount
             if (amountInput) {
                 if (type === "Mobile") {
-                    amountInput.value = 250;
+                    amountInput.value = "250";
                     amountInput.readOnly = true;
-                } else if (type && amountInput.readOnly) {
+                } else {
                     amountInput.value = "";
                     amountInput.readOnly = false;
                 }
             }
 
-            // Show relevant fields
             if (type === "Lodging") {
                 lodgingFields.forEach(el => el.style.display = "block");
             } else if (type === "Travel") {
                 travelFields.forEach(el => el.style.display = "block");
                 if (subtype === "2_wheeler") {
                     twoWheelerFields.forEach(el => el.style.display = "block");
-                } else if (["Bus", "Car", "Train"].includes(subtype)) {
+                } else if (["bus", "car", "train"].includes(subtype)) {
                     fourWheelerFields.forEach(el => el.style.display = "block");
                 }
             }
 
-            // Update required attributes
             updateRequiredFields(row);
         }
 
         if (typeSelect) typeSelect.addEventListener("change", toggleFields);
         if (subtypeSelect) subtypeSelect.addEventListener("change", toggleFields);
 
-        toggleFields(); // Run initially
+        toggleFields();
+        validateMobileSelection(row);
+        handleLodgingDates(row);
+
+        // Attach duplicate checking
+        attachDuplicateListeners(row);
     }
 
     // Enhanced validation function - only for custom business rules
@@ -195,6 +466,8 @@ document.addEventListener("DOMContentLoaded", function () {
             const amount = parseFloat(amountInput?.value);
             const checkin = checkinInput?.value;
             const checkout = checkoutInput?.value;
+            const typeSelect = row.querySelector("select[name*='[type]']");
+            const globalDate = document.getElementById("global-date")?.value;
 
             let hasError = false;
 
@@ -206,8 +479,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     span.parentElement.querySelector('input')?.classList.remove('error');
                 }
             });
-
-            // Custom validation rules only
 
             // File limit validation (not covered by HTML5)
             if (attachmentInput && attachmentInput.files.length > 2) {
@@ -233,8 +504,8 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             // End >= Start validation
-            if (!isNaN(start) && !isNaN(end) && end < start) {
-                endError.textContent = "End reading cannot be less than start reading.";
+            if (!isNaN(start) && !isNaN(end) && end <= start) {
+                endError.textContent = "End reading cannot be less than or equal to start reading.";
                 endError.style.display = "block";
                 endInput?.classList.add('error');
                 hasError = true;
@@ -242,7 +513,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
             // Amount calculation validation for 2-wheeler
             if (!isNaN(start) && !isNaN(end) && !isNaN(amount)) {
-                const typeSelect = row.querySelector("select[name*='[type]']");
                 const subtypeSelect = row.querySelector("select[name*='[subtype]']");
                 if (typeSelect?.value === "Travel" && subtypeSelect?.value === "2_wheeler") {
                     const expectedAmount = (end - start) * 3;
@@ -255,9 +525,19 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
             }
 
-            // Date range validation
-            if (checkin && checkout && new Date(checkout) < new Date(checkin)) {
-                checkoutError.textContent = "Check-out date cannot be before check-in date.";
+            // Enhanced date range validation for lodging
+            if (typeSelect?.value === "Lodging" && checkin && checkout) {
+                const checkinDate = new Date(checkin);
+                const checkoutDate = new Date(checkout);
+                const globalDateObj = new Date(globalDate);
+
+
+
+
+
+            } else if (checkin && checkout && new Date(checkout) < new Date(checkin)) {
+                // General date validation for non-lodging
+                checkoutError.textContent = "Check-out date can be same or one greater than checkin date";
                 checkoutError.style.display = "block";
                 checkoutInput?.classList.add('error');
                 hasError = true;
@@ -266,6 +546,13 @@ document.addEventListener("DOMContentLoaded", function () {
             // Amount must be positive
             if (!isNaN(amount) && amount <= 0) {
                 amountError.textContent = "Amount must be greater than 0.";
+                amountError.style.display = "block";
+                amountInput?.classList.add('error');
+                hasError = true;
+            }
+
+            if (!isNaN(amount) && (amount) > 99999) {
+                amountError.textContent = "Amount must be less than 99999.";
                 amountError.style.display = "block";
                 amountInput?.classList.add('error');
                 hasError = true;
@@ -319,6 +606,12 @@ document.addEventListener("DOMContentLoaded", function () {
             if (input.name.includes('[location]')) {
                 getCurrentLocation(input);
             }
+
+            // Reset readonly and styling for cloned inputs
+            input.readOnly = false;
+            input.style.backgroundColor = '';
+            input.removeAttribute('min');
+            input.removeAttribute('max');
         });
 
         // Setup file input
@@ -505,10 +798,16 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    // Enhanced form submission
+    // Enhanced form submission - REMOVED duplicate check to prevent double popup
+    // Replace the existing form submission handler in your code
+    // Find the section starting with "// Enhanced form submission - REMOVED duplicate check to prevent double popup"
+    // Replace it with this enhanced version:
+
+    // Enhanced form submission with immediate resubmit redirect
     if (form) {
-        form.addEventListener("submit", function (e) {
+        form.addEventListener("submit", async function (e) {
             const resubmitId = window?.resubmitData?.id;
+            const isResubmission = !!resubmitId; // Check if this is a resubmission
 
             if (!allowSubmit) {
                 e.preventDefault();
@@ -516,7 +815,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 return;
             }
 
-            const validateAndSubmitForm = () => {
+            const validateAndSubmitForm = async () => {
                 let total = 0;
                 let valid = true;
 
@@ -570,7 +869,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 // Check HTML5 validation first
                 if (!form.checkValidity()) {
-                    form.reportValidity(); // This will show HTML5 validation messages
+                    form.reportValidity();
                     return;
                 }
 
@@ -591,14 +890,98 @@ document.addEventListener("DOMContentLoaded", function () {
                     return;
                 }
 
+                // If you can't modify the backend, use this approach instead
+                // Replace the proceedToSubmit function with this:
+
                 const proceedToSubmit = () => {
                     localStorage.removeItem("expensesData");
-                    allowSubmit = true;
-                    form.requestSubmit();
+
+                    // For resubmissions, handle differently
+                    if (isResubmission) {
+                        // Store notification in sessionStorage BEFORE anything else
+                        sessionStorage.setItem('resubmit_success', JSON.stringify({
+                            message: 'Expense resubmitted successfully!',
+                            timestamp: Date.now()
+                        }));
+
+                        // Show immediate notification
+                        const Toast = Swal.mixin({
+                            toast: true,
+                            position: 'top-end',
+                            showConfirmButton: false,
+                            timer: 2000,
+                            timerProgressBar: true,
+                        });
+
+                        Toast.fire({
+                            icon: 'success',
+                            title: 'Expense Resubmitted Successfully!'
+                        });
+
+                        // Submit form via AJAX instead of normal form submission
+                        const formData = new FormData(form);
+
+                        fetch(form.action, {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                            }
+                        })
+                            .then(response => {
+                                if (response.ok) {
+                                    // Redirect to view page after successful submission
+                                    window.location.href = '/expenses/view';
+                                } else {
+                                    throw new Error('Submission failed');
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Resubmission error:', error);
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'Submission Error',
+                                    text: 'There was an error resubmitting your expense. Please try again.'
+                                });
+                            });
+
+                    } else {
+                        // Original behavior for new submissions
+                        allowSubmit = true;
+                        form.requestSubmit();
+                    }
                 };
 
                 console.log('used amount', total);
 
+                // For resubmissions, skip the confirmation dialog and proceed directly
+                if (isResubmission) {
+                    // Simple validation for resubmits - just check if exceeds limit and needs remark
+                    if (total > remainingLimit) {
+                        let hasRemark = false;
+                        const allRemarks = document.querySelectorAll("input[name*='[remarks]']");
+                        allRemarks.forEach(input => {
+                            if (input.value.trim() !== "") hasRemark = true;
+                        });
+
+                        if (!hasRemark) {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Remark Required',
+                                text: `Total expense ₹${total.toFixed(2)} exceeds ₹${remainingLimit}. Please add a remark before resubmitting.`,
+                                allowOutsideClick: false,
+                            });
+                            allRemarks[0]?.focus();
+                            return;
+                        }
+                    }
+
+                    // Direct submission for resubmits without confirmation dialog
+                    proceedToSubmit();
+                    return;
+                }
+
+                // Original confirmation flow for new submissions
                 if (total > remainingLimit) {
                     let hasRemark = false;
                     const allRemarks = document.querySelectorAll("input[name*='[remarks]']");

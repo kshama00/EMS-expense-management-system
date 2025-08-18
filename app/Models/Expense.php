@@ -22,15 +22,14 @@ class Expense extends Model
         'approved_by',
         'approved_at',
         'admin_comment',
-
     ];
 
     protected $casts = [
         'meta_data' => 'array',
         'approved_at' => 'datetime',
         'date' => 'date:Y-m-d',
-
     ];
+
     public function images()
     {
         return $this->hasMany(ExpenseImage::class);
@@ -76,10 +75,18 @@ class Expense extends Model
             2 => 'bus',
             3 => 'cab',
             4 => 'train',
-
         ];
     }
 
+    // ADDED: Method to get status name
+    public function statusName()
+    {
+        return self::statusMap()[$this->status] ?? 'Unknown';
+    }
 
+    // ADDED: Method to get type name
+    public function typeName()
+    {
+        return self::typeMap()[$this->type] ?? 'Unknown';
+    }
 }
-

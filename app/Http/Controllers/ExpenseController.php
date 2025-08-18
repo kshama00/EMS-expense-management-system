@@ -31,14 +31,17 @@ class ExpenseController extends Controller
             ->whereBetween('date', [$startOfMonth, $endOfMonth])
             ->exists();
 
+        // Get type and subtype mappings - FIXED: Define these variables first
+        $types = Expense::typeMap();
+        $subtypes = Expense::subtypeMap();
+
         // ENHANCED: Get existing expenses for duplicate checking with more details
         $existingExpenses = Expense::where('user_id', $userId)
             ->whereBetween('date', [$startOfMonth, $endOfMonth])
             ->where('status', '!=', '5') // Exclude cancelled expenses
             ->orderBy('date', 'desc')
             ->get()
-            ->map(function ($expense) {
-                $types = Expense::typeMap();
+            ->map(function ($expense) use ($types) { // FIXED: Use the $types variable here
                 return [
                     'id' => $expense->id,
                     'type' => $types[$expense->type] ?? 'Unknown',
@@ -56,8 +59,7 @@ class ExpenseController extends Controller
         if ($resubmitId) {
             $prefillExpense = Expense::with('images')->findOrFail($resubmitId)->toArray();
 
-            $subtypes = Expense::subtypeMap();
-
+            // FIXED: Now $types and $subtypes are properly defined
             if (isset($prefillExpense['type'])) {
                 $prefillExpense['type'] = $types[$prefillExpense['type']] ?? $prefillExpense['type'];
             }
@@ -251,6 +253,9 @@ class ExpenseController extends Controller
 
     public function checkDuplicate(Request $request)
     {
+        // FIXED: Define $typeMap variable here
+        $typeMap = array_flip(Expense::typeMap());
+
         $request->validate([
             'type' => 'required|string',
             'amount' => 'required|numeric',

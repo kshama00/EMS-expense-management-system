@@ -4,154 +4,122 @@ document.addEventListener("DOMContentLoaded", function () {
     const expenseRows = document.getElementById("expense-rows");
     const form = document.querySelector("form");
 
-    //duplicate entry check function
-    function attachDuplicateListeners(row) {
+    function getCurrentLocation(input) {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(async function (position) {
+                try {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+
+                    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+                    const data = await response.json();
+
+                    // Use full address from display_name
+                    const fullAddress = data.display_name;
+
+                    if (input) input.value = fullAddress;
+                } catch (error) {
+                    console.error("Geolocation error:", error);
+                    if (input) input.placeholder = "Unable to get location";
+                }
+            }, function (error) {
+                if (input) input.placeholder = "Unable to get location";
+                console.error("Geolocation error:", error);
+            });
+        } else {
+            if (input) input.placeholder = "Geolocation not supported";
+        }
+    }
+
+    // Initial location setup
+    const locationInput = document.getElementById('location');
+    if (locationInput) {
+        getCurrentLocation(locationInput);
+    }
+
+    function DuplicateCheck(row) {
         const typeSelect = row.querySelector("select[name*='[type]']");
         const amountInput = row.querySelector("input[name*='[amount]']");
-        const globalDateInput = document.getElementById("global-date");
+        const dateInput = document.getElementById("global-date");
+        let alertShown = false;
 
-        let isCheckingDuplicate = false;
+        function showDuplicateWarning(inputElement) {
+            if (alertShown) return;
+            alertShown = true;
 
+            Swal.fire({
+                icon: 'warning',
+                title: 'Duplicate entry in the form!',
+                text: 'You have already entered this value.',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, Continue',
+                cancelButtonText: 'Let Me Change',
+                reverseButtons: true
+            }).then((result) => {
+                alertShown = false;
 
-        function checkDuplicateEntry(row, showWarning = true) {
-            const type = row.querySelector("select[name*='[type]']")?.value;
-            const amount = parseFloat(row.querySelector("input[name*='[amount]']")?.value);
-            const globalDate = globalDateInput?.value;
-
-
-            if (!type || !amount || isNaN(amount) || !globalDate || isCheckingDuplicate) {
-                return Promise.resolve(true);
-            }
-
-
-            const formDuplicate = checkFormDuplicates(row, type, amount, globalDate);
-
-            if (formDuplicate && showWarning) {
-                return showSimpleDuplicateWarning('form');
-            }
-
-
-            if (!formDuplicate) {
-                return checkDatabaseDuplicates(type, amount, globalDate, showWarning);
-            }
-
-            return Promise.resolve(true);
-        }
-
-
-        function checkFormDuplicates(currentRow, type, amount, date) {
-            const allRows = document.querySelectorAll('.expense-row');
-
-            for (let row of allRows) {
-                if (row === currentRow) continue; // Skip the current row
-
-                const rowType = row.querySelector("select[name*='[type]']")?.value;
-                const rowAmount = parseFloat(row.querySelector("input[name*='[amount]']")?.value);
-
-                if (rowType === type && rowAmount === amount) {
-                    return true;
+                if (result.isConfirmed) {
+                    // User clicked "Yes, Continue" → do nothing
+                } else if (result.dismiss === Swal.DismissReason.cancel) {
+                    // User clicked "Let Me Change" → clear the input
+                    if (inputElement) inputElement.value = '';
                 }
-            }
-            return false;
-        }
-
-
-        function checkDatabaseDuplicates(type, amount, date, showWarning = true) {
-            if (isCheckingDuplicate) return Promise.resolve(true);
-
-            isCheckingDuplicate = true;
-            const originalId = window?.resubmitData?.id || null;
-
-            return fetch('/expenses/check-duplicate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                },
-                body: JSON.stringify({
-                    type: type,
-                    amount: amount,
-                    date: date,
-                    exclude_id: originalId
-                })
-            })
-                .then(response => response.json())
-                .then(data => {
-                    isCheckingDuplicate = false;
-
-                    if (data.duplicate && showWarning) {
-                        return showSimpleDuplicateWarning('database');
-                    }
-                    return !data.duplicate;
-                })
-                .catch(error => {
-                    isCheckingDuplicate = false;
-                    console.error('Duplicate check error:', error);
-                    return true;
-                });
-        }
-
-
-        function showSimpleDuplicateWarning(source) {
-            return new Promise((resolve) => {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Duplicate Entry Detected',
-                    text: `A duplicate entry with the same type, date and amount already exists ${source === 'form' ? 'in this form' : 'in the database'}. Do you want to continue?`,
-                    showCancelButton: true,
-                    confirmButtonText: 'Yes, Continue',
-                    cancelButtonText: 'No, Let me change',
-                    allowOutsideClick: false,
-                }).then((result) => {
-                    if (!result.isConfirmed) {
-
-                        const typeSelect = row.querySelector("select[name*='[type]']");
-                        const amountInput = row.querySelector("input[name*='[amount]']");
-                        if (typeSelect) typeSelect.value = '';
-                        if (amountInput) amountInput.value = '';
-                    }
-                    resolve(result.isConfirmed);
-                });
             });
         }
 
+        function checkDuplicate() {
+            // Skip duplicate check on resubmission
+            if (window.resubmitData) return;
 
-        let duplicateCheckTimeout;
+            const type = typeSelect?.value;
+            const amount = parseFloat(amountInput?.value);
+            const date = dateInput?.value;
 
-        function debouncedDuplicateCheck() {
-            clearTimeout(duplicateCheckTimeout);
-            duplicateCheckTimeout = setTimeout(() => {
-                checkDuplicateEntry(row, true);
-            }, 800);
+            if (!type || !amount || isNaN(amount) || !date) return;
+
+            let duplicateFound = false;
+
+            // 1️⃣ Check duplicates in the form
+            const rows = document.querySelectorAll(".expense-row");
+            for (let r of rows) {
+                if (r === row) continue;
+                const rType = r.querySelector("select[name*='[type]']")?.value;
+                const rAmount = parseFloat(r.querySelector("input[name*='[amount]']")?.value);
+                if (rType === type && rAmount === amount) {
+                    duplicateFound = true;
+                    break; // stop further loop
+                }
+            }
+
+            if (duplicateFound) {
+                showDuplicateWarning(amountInput);
+                return; // ✅ skip database check if form duplicate exists
+            }
+
+            // 2️⃣ Check duplicates in the database
+            fetch('/expenses/check-duplicate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({ type, amount, date })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.duplicate) {
+                        showDuplicateWarning(amountInput);
+                    }
+                });
         }
 
-
-        if (typeSelect) {
-            typeSelect.addEventListener('change', debouncedDuplicateCheck);
-        }
-
-        if (amountInput) {
-            amountInput.addEventListener('blur', debouncedDuplicateCheck);
-
-        }
-
-
-        if (globalDateInput) {
-            const globalDateChangeHandler = () => {
-                clearTimeout(duplicateCheckTimeout);
-                setTimeout(debouncedDuplicateCheck, 200);
-            };
-
-
-            globalDateInput.removeEventListener('change', globalDateChangeHandler);
-            globalDateInput.addEventListener('change', globalDateChangeHandler);
-        }
-
-
-        row._duplicateChecker = checkDuplicateEntry;
-
-        return checkDuplicateEntry;
+        // Trigger when user leaves the field or changes type/date
+        if (typeSelect) typeSelect.addEventListener('change', checkDuplicate);
+        if (amountInput) amountInput.addEventListener('blur', checkDuplicate);
+        if (dateInput) dateInput.addEventListener('change', checkDuplicate);
     }
+
+
 
     function saveFormData() {
         const formData = {
@@ -216,44 +184,10 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    // Function to manage only dynamic required attributes
-    function updateRequiredFields(row) {
-        const typeSelect = row.querySelector("select[name*='[type]']");
-        const subtypeSelect = row.querySelector("select[name*='[subtype]']");
-        const fromLocationInput = row.querySelector("input[name*='[from_location]']");
-        const toLocationInput = row.querySelector("input[name*='[to_location]']");
-        const startReadingInput = row.querySelector("input[name*='[start_reading]']");
-        const endReadingInput = row.querySelector("input[name*='[end_reading]']");
-        const checkinInput = row.querySelector("input[name*='[checkin_date]']");
-        const checkoutInput = row.querySelector("input[name*='[checkout_date]']");
-
-        const type = typeSelect?.value;
-        const subtype = subtypeSelect?.value;
-
-        [fromLocationInput, toLocationInput,
-            startReadingInput, endReadingInput, checkinInput, checkoutInput].forEach(input => {
-                if (input) input.removeAttribute('required');
-            });
-
-
-        if (type === "Travel") {
-            if (subtypeSelect) subtypeSelect.setAttribute('required', 'true');
-
-            if (subtype === "2_wheeler") {
-                if (startReadingInput) startReadingInput.setAttribute('required', 'true');
-                if (endReadingInput) endReadingInput.setAttribute('required', 'true');
-            } else if (subtype === "bus" || subtype === "car" || subtype === "train") {
-                if (fromLocationInput) fromLocationInput.setAttribute('required', 'true');
-                if (toLocationInput) toLocationInput.setAttribute('required', 'true');
-            }
-        } else if (type === "Lodging") {
-            if (checkinInput) checkinInput.setAttribute('required', 'true');
-            if (checkoutInput) checkoutInput.setAttribute('required', 'true');
-        }
-    }
-
     function validateMobileSelection(row) {
         const typeSelect = row.querySelector("select[name*='[type]']");
+        const amountInput = row.querySelector("input[name*='[amount]']");
+
 
         if (typeSelect) {
             typeSelect.addEventListener('change', function () {
@@ -269,11 +203,11 @@ document.addEventListener("DOMContentLoaded", function () {
                                 text: 'You have already submitted a Mobile expense for this month. Only one Mobile expense is allowed per month.',
                             });
                             this.value = '';
+                            if (amountInput) amountInput.value = '';
                             return;
                         }
                     }
 
-                    // Check if another Mobile type is already selected in current form
                     const otherMobileRows = document.querySelectorAll('.expense-row select[name*="[type]"]');
                     let mobileCount = 0;
 
@@ -290,6 +224,7 @@ document.addEventListener("DOMContentLoaded", function () {
                             text: 'Only one Mobile expense is allowed per month. Please remove the other Mobile entry first.',
                         });
                         this.value = '';
+                        if (amountInput) amountInput.value = '';
                         return;
                     }
                 }
@@ -302,131 +237,97 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    // Handle lodging date restrictions
-    function handleLodgingDates(row) {
-        const typeSelect = row.querySelector("select[name*='[type]']");
-        const checkinInput = row.querySelector("input[name*='[checkin_date]']");
-        const checkoutInput = row.querySelector("input[name*='[checkout_date]']");
-        const globalDate = document.getElementById("global-date")?.value;
-
-        if (!typeSelect || !checkinInput || !checkoutInput || !globalDate) return;
-
-        function updateLodgingDates() {
-            if (typeSelect.value === "Lodging") {
-                // Set checkin date to global date and make it readonly
-                checkinInput.value = globalDate;
-                checkinInput.readOnly = true;
-                checkinInput.style.backgroundColor = '#f8f9fa';
-
-                // Set checkout date restrictions
-                checkoutInput.readOnly = false;
-                checkoutInput.style.backgroundColor = '';
-
-                // Set min and max for checkout date (same day or +1 day)
-                const globalDateObj = new Date(globalDate);
-                const nextDay = new Date(globalDateObj);
-                nextDay.setDate(globalDateObj.getDate() + 1);
-
-                checkoutInput.min = globalDate;
-                checkoutInput.max = nextDay.toISOString().split('T')[0];
-
-                // If checkout is empty or invalid, set it to checkin date
-                if (!checkoutInput.value || checkoutInput.value < globalDate || checkoutInput.value > nextDay.toISOString().split('T')[0]) {
-                    checkoutInput.value = globalDate;
-                }
-            } else {
-                // Reset lodging date restrictions for non-lodging types
-                checkinInput.readOnly = false;
-                checkinInput.style.backgroundColor = '';
-                checkoutInput.readOnly = false;
-                checkoutInput.style.backgroundColor = '';
-                checkinInput.removeAttribute('min');
-                checkinInput.removeAttribute('max');
-                checkoutInput.removeAttribute('min');
-                checkoutInput.removeAttribute('max');
-            }
-        }
-
-        typeSelect.addEventListener('change', updateLodgingDates);
-
-        // Also add validation for checkout date changes
-        checkoutInput.addEventListener('change', function () {
-            if (typeSelect.value === "Lodging") {
-                const globalDateObj = new Date(globalDate);
-                const nextDay = new Date(globalDateObj);
-                nextDay.setDate(globalDateObj.getDate() + 1);
-                const selectedDate = new Date(this.value);
-
-                if (selectedDate < globalDateObj || selectedDate > nextDay) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Invalid Checkout Date',
-                        text: 'For lodging expenses, checkout date can only be the same as check-in date or one day later.',
-                    });
-                    this.value = globalDate; // Reset to checkin date
-                }
-            }
-        });
-
-        // Run initially
-        updateLodgingDates();
-    }
-
-    // Handle type changes
     function handleTypeChange(row) {
         const typeSelect = row.querySelector("select[name*='[type]']");
         const subtypeSelect = row.querySelector("select[name*='[subtype]']");
         const amountInput = row.querySelector("input[name*='[amount]']");
+
         const lodgingFields = row.querySelectorAll(".lodging");
         const travelFields = row.querySelectorAll(".travel");
         const twoWheelerFields = row.querySelectorAll(".twoWheeler");
         const fourWheelerFields = row.querySelectorAll(".fourWheeler");
 
+        // Inputs for required logic
+        const fromLocationInput = row.querySelector("input[name*='[from_location]']");
+        const toLocationInput = row.querySelector("input[name*='[to_location]']");
+        const startReadingInput = row.querySelector("input[name*='[start_reading]']");
+        const endReadingInput = row.querySelector("input[name*='[end_reading]']");
+        const checkinInput = row.querySelector("input[name*='[checkin_date]']");
+        const checkoutInput = row.querySelector("input[name*='[checkout_date]']");
+
+        const globalDateInput = document.getElementById("global-date");
+
+
         function toggleFields() {
             const type = typeSelect?.value;
             const subtype = subtypeSelect?.value;
 
+            // Hide all fields first
             lodgingFields.forEach(el => el.style.display = "none");
             travelFields.forEach(el => el.style.display = "none");
             twoWheelerFields.forEach(el => el.style.display = "none");
             fourWheelerFields.forEach(el => el.style.display = "none");
 
+            // Reset required attributes
+            [fromLocationInput, toLocationInput,
+                startReadingInput, endReadingInput, checkinInput, checkoutInput].forEach(input => {
+                    if (input) input.removeAttribute('required');
+                });
+
             if (amountInput) {
+                const currentValue = amountInput.value;
+                const wasMobile = amountInput.readOnly && currentValue === "250";
+
                 if (type === "Mobile") {
                     amountInput.value = "250";
                     amountInput.readOnly = true;
                 } else {
-                    amountInput.value = "";
                     amountInput.readOnly = false;
+                    if (wasMobile) {
+                        amountInput.value = "";
+                    }
                 }
             }
 
+            // Show fields and set required based on type/subtype
             if (type === "Lodging") {
                 lodgingFields.forEach(el => el.style.display = "block");
+                if (checkinInput) checkinInput.setAttribute('required', 'true');
+                if (checkoutInput) checkoutInput.setAttribute('required', 'true');
+
+                if (checkinInput) {
+                    checkinInput.value = globalDateInput.value;
+                    checkinInput.setAttribute("readonly", true);
+                }
+
+                if (checkoutInput) {
+                    checkoutInput.min = globalDateInput.value;
+                }
             } else if (type === "Travel") {
                 travelFields.forEach(el => el.style.display = "block");
+                if (subtypeSelect) subtypeSelect.setAttribute('required', 'true');
+
                 if (subtype === "2_wheeler") {
                     twoWheelerFields.forEach(el => el.style.display = "block");
+                    if (startReadingInput) startReadingInput.setAttribute('required', 'true');
+                    if (endReadingInput) endReadingInput.setAttribute('required', 'true');
                 } else if (["bus", "car", "train"].includes(subtype)) {
                     fourWheelerFields.forEach(el => el.style.display = "block");
+                    if (fromLocationInput) fromLocationInput.setAttribute('required', 'true');
+                    if (toLocationInput) toLocationInput.setAttribute('required', 'true');
                 }
             }
-
-            updateRequiredFields(row);
         }
 
         if (typeSelect) typeSelect.addEventListener("change", toggleFields);
         if (subtypeSelect) subtypeSelect.addEventListener("change", toggleFields);
 
         toggleFields();
-        validateMobileSelection(row);
-        handleLodgingDates(row);
 
-        // Attach duplicate checking
-        attachDuplicateListeners(row);
+        validateMobileSelection(row);
+        DuplicateCheck(row);
     }
 
-    // Enhanced validation function - only for custom business rules
     function bindValidation(row) {
         const startInput = row.querySelector("input[name*='[start_reading]']");
         const endInput = row.querySelector("input[name*='[end_reading]']");
@@ -435,7 +336,6 @@ document.addEventListener("DOMContentLoaded", function () {
         const checkinInput = row.querySelector("input[name*='[checkin_date]']");
         const checkoutInput = row.querySelector("input[name*='[checkout_date]']");
 
-        // Only keep error spans for custom validation rules
         function getErrorSpan(input, className) {
             let span = input?.parentElement.querySelector("." + className);
             if (!span && input) {
@@ -463,7 +363,6 @@ document.addEventListener("DOMContentLoaded", function () {
             const checkin = checkinInput?.value;
             const checkout = checkoutInput?.value;
             const typeSelect = row.querySelector("select[name*='[type]']");
-            const globalDate = document.getElementById("global-date")?.value;
 
             let hasError = false;
 
@@ -475,14 +374,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     span.parentElement.querySelector('input')?.classList.remove('error');
                 }
             });
-
-            // File limit validation (not covered by HTML5)
-            if (attachmentInput && attachmentInput.files.length > 2) {
-                attachmentError.textContent = "You can upload a maximum of 2 attachments.";
-                attachmentError.style.display = "block";
-                attachmentInput.classList.add('error');
-                hasError = true;
-            }
 
             // No negative numbers
             if (!isNaN(start) && start < 0) {
@@ -521,18 +412,12 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
             }
 
-            // Enhanced date range validation for lodging
-            if (typeSelect?.value === "Lodging" && checkin && checkout) {
-                const checkinDate = new Date(checkin);
-                const checkoutDate = new Date(checkout);
-                const globalDateObj = new Date(globalDate);
+            const checkinDate = new Date(checkin);
+            const checkoutDate = new Date(checkout);
+            const diffTime = checkoutDate - checkinDate;
+            const diffDays = diffTime / (1000 * 60 * 60 * 24);
 
-
-
-
-
-            } else if (checkin && checkout && new Date(checkout) < new Date(checkin)) {
-                // General date validation for non-lodging
+            if (checkin && checkout && diffDays > 1) {
                 checkoutError.textContent = "Check-out date can be same or one greater than checkin date";
                 checkoutError.style.display = "block";
                 checkoutInput?.classList.add('error');
@@ -569,8 +454,10 @@ document.addEventListener("DOMContentLoaded", function () {
         return validateFields;
     }
 
-    // Create new row function
+    // Replace your existing addNewRow function with this updated version:
+
     function addNewRow(shouldSave = true) {
+        const expenseRows = document.getElementById("expense-rows");
         const firstRow = document.querySelector(".expense-row");
         if (!firstRow) return null;
 
@@ -581,7 +468,7 @@ document.addEventListener("DOMContentLoaded", function () {
         newRow.querySelectorAll("input, select, textarea").forEach((input) => {
             const name = input.getAttribute("name");
             if (name) {
-                input.setAttribute("name", name.replace(/\[0\]/, `[${currentIndex}]`));
+                input.setAttribute("name", name.replace(/\[\d+\]/, `[${currentIndex}]`));
             }
 
             if (input.type === "file") {
@@ -591,7 +478,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 input.value = "";
             }
 
-            // Auto-fill date and location for new rows
+            // Auto-fill date and location
             if (input.name.includes('[date]')) {
                 const globalDate = document.getElementById("global-date")?.value;
                 input.value = globalDate || new Date().toISOString().split("T")[0];
@@ -603,14 +490,14 @@ document.addEventListener("DOMContentLoaded", function () {
                 getCurrentLocation(input);
             }
 
-            // Reset readonly and styling for cloned inputs
+            // Reset readonly and styling
             input.readOnly = false;
             input.style.backgroundColor = '';
             input.removeAttribute('min');
             input.removeAttribute('max');
         });
 
-        // Setup file input
+        // Setup file input list
         const fileNameList = newRow.querySelector(".file-names");
         if (fileNameList) {
             fileNameList.id = `selected_files_${currentIndex}`;
@@ -622,22 +509,11 @@ document.addEventListener("DOMContentLoaded", function () {
             bindFileInput(fileInput, currentIndex);
         }
 
-        // Add delete button only for non-first rows
-        const existingRemoveBtn = newRow.querySelector(".remove-row-btn");
-        if (existingRemoveBtn) {
-            existingRemoveBtn.remove();
-        }
-
-        if (currentIndex > 0) {
-            let removeBtn = document.createElement("button");
-            removeBtn.innerHTML = '<i class="fas fa-trash"></i>';
-            removeBtn.type = "button";
-            removeBtn.classList.add("remove-row-btn");
-            removeBtn.addEventListener("click", function () {
-                newRow.remove();
-                if (shouldSave) saveFormData();
-            });
-            newRow.appendChild(removeBtn);
+        // Show delete button and assign proper click handler
+        const deleteBtn = newRow.querySelector(".remove-row-btn");
+        if (deleteBtn) {
+            deleteBtn.style.display = currentIndex > 0 ? "flex" : "none";
+            deleteBtn.onclick = () => newRow.remove();
         }
 
         expenseRows.appendChild(newRow);
@@ -651,35 +527,7 @@ document.addEventListener("DOMContentLoaded", function () {
         return newRow;
     }
 
-    // Get current location
-    function getCurrentLocation(input) {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(async function (position) {
-                try {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-                    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
-                    const data = await response.json();
-                    const address = data.address.city || data.address.town || data.address.village || data.display_name;
-                    if (input) input.value = address;
-                } catch (error) {
-                    console.error("Geolocation error:", error);
-                    if (input) input.placeholder = "Unable to get location";
-                }
-            }, function (error) {
-                if (input) input.placeholder = "Unable to get location";
-                console.error("Geolocation error:", error);
-            });
-        } else {
-            if (input) input.placeholder = "Geolocation not supported";
-        }
-    }
 
-    // Initial location setup
-    const locationInput = document.getElementById('location');
-    if (locationInput) {
-        getCurrentLocation(locationInput);
-    }
 
     // Enhanced file input handling
     document.querySelectorAll(".file-input").forEach((input, index) => {
@@ -794,11 +642,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    // Enhanced form submission - REMOVED duplicate check to prevent double popup
-    // Replace the existing form submission handler in your code
-    // Find the section starting with "// Enhanced form submission - REMOVED duplicate check to prevent double popup"
-    // Replace it with this enhanced version:
-
     // Enhanced form submission with immediate resubmit redirect
     if (form) {
         form.addEventListener("submit", async function (e) {
@@ -886,21 +729,15 @@ document.addEventListener("DOMContentLoaded", function () {
                     return;
                 }
 
-                // If you can't modify the backend, use this approach instead
-                // Replace the proceedToSubmit function with this:
-
                 const proceedToSubmit = () => {
                     localStorage.removeItem("expensesData");
 
-                    // For resubmissions, handle differently
                     if (isResubmission) {
-                        // Store notification in sessionStorage BEFORE anything else
                         sessionStorage.setItem('resubmit_success', JSON.stringify({
                             message: 'Expense resubmitted successfully!',
                             timestamp: Date.now()
                         }));
 
-                        // Show immediate notification
                         const Toast = Swal.mixin({
                             toast: true,
                             position: 'top-end',
@@ -914,7 +751,6 @@ document.addEventListener("DOMContentLoaded", function () {
                             title: 'Expense Resubmitted Successfully!'
                         });
 
-                        // Submit form via AJAX instead of normal form submission
                         const formData = new FormData(form);
 
                         fetch(form.action, {
@@ -926,7 +762,6 @@ document.addEventListener("DOMContentLoaded", function () {
                         })
                             .then(response => {
                                 if (response.ok) {
-                                    // Redirect to view page after successful submission
                                     window.location.href = '/expenses/view';
                                 } else {
                                     throw new Error('Submission failed');
@@ -942,7 +777,6 @@ document.addEventListener("DOMContentLoaded", function () {
                             });
 
                     } else {
-                        // Original behavior for new submissions
                         allowSubmit = true;
                         form.requestSubmit();
                     }
@@ -950,9 +784,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 console.log('used amount', total);
 
-                // For resubmissions, skip the confirmation dialog and proceed directly
                 if (isResubmission) {
-                    // Simple validation for resubmits - just check if exceeds limit and needs remark
                     if (total > remainingLimit) {
                         let hasRemark = false;
                         const allRemarks = document.querySelectorAll("input[name*='[remarks]']");
@@ -971,13 +803,10 @@ document.addEventListener("DOMContentLoaded", function () {
                             return;
                         }
                     }
-
-                    // Direct submission for resubmits without confirmation dialog
                     proceedToSubmit();
                     return;
                 }
 
-                // Original confirmation flow for new submissions
                 if (total > remainingLimit) {
                     let hasRemark = false;
                     const allRemarks = document.querySelectorAll("input[name*='[remarks]']");

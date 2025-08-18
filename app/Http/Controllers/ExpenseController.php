@@ -15,7 +15,7 @@ class ExpenseController extends Controller
 
     public function create(Request $request)
     {
-        $userId = auth()->id() || 1;
+        $userId = auth()->id() ?? 1;
         $startOfMonth = Carbon::now()->startOfMonth();
         $endOfMonth = Carbon::now()->endOfMonth();
 
@@ -35,7 +35,7 @@ class ExpenseController extends Controller
         $types = Expense::typeMap();
         $subtypes = Expense::subtypeMap();
 
-        // ENHANCED: Get existing expenses for duplicate checking with more details
+        // Get existing expenses for duplicate checking with more details
         $existingExpenses = Expense::where('user_id', $userId)
             ->whereBetween('date', [$startOfMonth, $endOfMonth])
             ->where('status', '!=', '5') // Exclude cancelled expenses
@@ -80,6 +80,7 @@ class ExpenseController extends Controller
     public function store(Request $request)
     {
         $expenses = $request->input('expenses', []);
+
         if (empty($expenses)) {
             return redirect()->back()->with('error', 'No expense data found.');
         }

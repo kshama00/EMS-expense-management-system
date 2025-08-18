@@ -3,6 +3,9 @@
     $today = date('Y-m-d');
     $firstOfMonth = date('Y-m-01');
     $isResubmitting = isset($prefillExpense);
+    $globalDate = $isResubmitting
+        ? \Carbon\Carbon::parse($prefillExpense['date'])->format('Y-m-d')
+        : old('global_date', $today);
 @endphp
 
 @section('styles')
@@ -17,7 +20,7 @@
 
         <div class="view-expense-wrapper">
             <a href="{{ route('expenses.view') }}" class="view-expense-button">View Expenses</a>
-        </div>
+        </div><br>
 
         <div id="capacity-info">
             <p>Monthly Limit: ₹<span id="max-limit">{{ $maxLimit}}</span></p>
@@ -42,6 +45,9 @@
 
             <div id="expense-rows">
                 <div class="expense-row">
+                    <button type="button" class="remove-row-btn" style="display: none;">
+                        <i class="fas fa-trash"></i>
+                    </button>
                     <div class="form">
                         <label>Type</label>
                         <select name="expenses[0][type]" {{ $isResubmitting ? 'disabled' : '' }} required>
@@ -104,15 +110,15 @@
                     {{-- Lodging Fields --}}
                     <div class="form lodging" style="display: none;">
                         <label>Checkin Date</label>
-                        <input type="date" name="expenses[0][checkin_date]" class="limit-dates" min="{{ $today }}"
-                            value="{{ $isResubmitting && isset($prefillExpense['checkin_date']) ? \Carbon\Carbon::parse($prefillExpense['checkin_date'])->format('Y-m-d') : '' }}" />
+                        <input type="date" name="expenses[0][checkin_date]" class="limit-dates" value="{{ $globalDate }}"
+                            readonly />
                     </div>
 
 
                     <div class="form lodging" style="display: none;">
                         <label>Checkout Date</label>
                         <input type="date" name="expenses[0][checkout_date]" class="limit-dates" min="{{ $today}}"
-                            value="{{ $isResubmitting && isset($prefillExpense['checkout_date']) ? \Carbon\Carbon::parse($prefillExpense['checkout_date'])->format('Y-m-d') : '' }}"
+                            value="{{ $isResubmitting && isset($prefillExpense['checkout_date']) ? \Carbon\Carbon::parse($prefillExpense['checkout_date'])->format('Y-m-d') : '$globalDate' }}"
                             onclick="this.showPicker()" style="cursor: pointer;" />
                     </div>
 

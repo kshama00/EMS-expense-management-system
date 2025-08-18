@@ -23,6 +23,9 @@ class ExpenseController extends Controller
             ->whereBetween('date', [$startOfMonth, $endOfMonth])
             ->sum('amount');
 
+        $maxLimit = 6250;
+        $remaining = $maxLimit - $usedAmount;
+
         $hasMobile = Expense::where('user_id', $userId)
             ->where('type', '5')
             ->whereBetween('date', [$startOfMonth, $endOfMonth])
@@ -35,29 +38,17 @@ class ExpenseController extends Controller
             ->orderBy('date', 'desc')
             ->get()
             ->map(function ($expense) {
-                $types = [
-                    1 => 'Travel',
-                    2 => 'Lodging',
-                    3 => 'Food',
-                    4 => 'Printing',
-                    5 => 'Mobile',
-                    6 => 'Miscellaneous',
-                ];
-
+                $types = Expense::typeMap();
                 return [
                     'id' => $expense->id,
                     'type' => $types[$expense->type] ?? 'Unknown',
-                    'amount' => (float) $expense->amount, // Ensure it's a float for JS comparison
+                    'amount' => (float) $expense->amount,
                     'date' => $expense->date,
                     'status' => $expense->status,
-                    'status_name' => $expense->statusName(),
                     'location' => $expense->location,
                     'remarks' => $expense->remarks,
                 ];
             });
-
-        $maxLimit = 6250;
-        $remaining = $maxLimit - $usedAmount;
 
         $prefillExpense = null;
         $resubmitId = $request->query('resubmit_id');
@@ -65,21 +56,7 @@ class ExpenseController extends Controller
         if ($resubmitId) {
             $prefillExpense = Expense::with('images')->findOrFail($resubmitId)->toArray();
 
-            $types = [
-                1 => 'Travel',
-                2 => 'Lodging',
-                3 => 'Food',
-                4 => 'Printing',
-                5 => 'Mobile',
-                6 => 'Miscellaneous',
-            ];
-
-            $subtypes = [
-                1 => '2_wheeler',
-                2 => 'bus',
-                3 => 'cab',
-                4 => 'train',
-            ];
+            $subtypes = Expense::subtypeMap();
 
             if (isset($prefillExpense['type'])) {
                 $prefillExpense['type'] = $types[$prefillExpense['type']] ?? $prefillExpense['type'];
@@ -105,19 +82,9 @@ class ExpenseController extends Controller
             return redirect()->back()->with('error', 'No expense data found.');
         }
 
-        $typeMap = [
-            'Travel' => 1,
-            'Lodging' => 2,
-            'Food' => 3,
-            'Printing' => 4,
-            'Mobile' => 5,
-            'Miscellaneous' => 6,
-        ];
+        $typeMap = array_flip(Expense::typeMap());
 
-        // NEW: Check for duplicates before processing
         $userId = auth()->id() ?? 1;
-        $startOfMonth = Carbon::now()->startOfMonth();
-        $endOfMonth = Carbon::now()->endOfMonth();
 
         foreach ($expenses as $index => $expenseData) {
             $validator = Validator::make($expenseData, [
@@ -143,7 +110,6 @@ class ExpenseController extends Controller
                     ->withInput();
             }
 
-            // NEW: Server-side duplicate check (additional safety net)
             $typeId = $typeMap[$expenseData['type']] ?? null;
             $originalId = $request->input('original_expense_id');
 
@@ -152,7 +118,7 @@ class ExpenseController extends Controller
                     ->where('type', $typeId)
                     ->where('amount', $expenseData['amount'])
                     ->where('date', $expenseData['date'])
-                    ->where('status', '!=', '5'); // Exclude cancelled
+                    ->where('status', '!=', '5');
 
                 // Exclude the original expense if this is a resubmission
                 if ($originalId) {
@@ -283,9 +249,6 @@ class ExpenseController extends Controller
         return redirect()->back()->with('success', 'Expenses saved successfully.');
     }
 
-    /**
-     * NEW: API endpoint for real-time duplicate checking
-     */
     public function checkDuplicate(Request $request)
     {
         $request->validate([
@@ -294,15 +257,6 @@ class ExpenseController extends Controller
             'date' => 'required|date',
             'exclude_id' => 'nullable|integer' // For resubmission cases
         ]);
-
-        $typeMap = [
-            'Travel' => 1,
-            'Lodging' => 2,
-            'Food' => 3,
-            'Printing' => 4,
-            'Mobile' => 5,
-            'Miscellaneous' => 6,
-        ];
 
         $typeId = $typeMap[$request->type] ?? null;
         if (!$typeId) {
@@ -338,24 +292,6 @@ class ExpenseController extends Controller
         }
 
         return response()->json(['duplicate' => false]);
-    }
-
-    /**
-     * Build the complete history chain for an expense
-     */
-    private function buildHistoryChain($currentExpense)
-    {
-        $historyChain = [];
-
-        // If current expense has history, use it
-        if (isset($currentExpense->meta_data['history']) && is_array($currentExpense->meta_data['history'])) {
-            foreach ($currentExpense->meta_data['history'] as $index => $historyItem) {
-                $historyItem['version'] = $index + 1; // Renumber starting from 1
-                $historyChain[] = $historyItem;
-            }
-        }
-
-        return $historyChain;
     }
 
 
@@ -414,9 +350,14 @@ class ExpenseController extends Controller
             $approved = $items->sum('approved_amount');
             $statuses = $items->pluck('status')->unique();
 
-            $statusName = $statuses->count() === 1
-                ? $items->first()->statusName()
-                : 'Partially Approved';
+
+            if ($statuses->contains('1')) {
+                $statusName = 'Pending';
+            } elseif ($statuses->count() === 1) {
+                $statusName = $statuses->first();
+            } else {
+                $statusName = 'Partially Approved';
+            }
 
             $expenseGroups[] = [
                 'date' => $date,
@@ -424,18 +365,12 @@ class ExpenseController extends Controller
                 'approved' => $approved,
                 'status' => $statusName,
                 'expenses' => $items->map(function ($expense) {
-                    // Copy meta_data but remove Resubmitted_expense_ids before sending to view
-                    $metaData = $expense->meta_data ?? [];
-
-                    // Remove it from the data you pass to view (so it doesn't show in UI)
-                    unset($metaData['Resubmitted_expense_ids']);
-
                     return [
                         'id' => $expense->id,
-                        'type' => $expense->typeName(),
+                        'type' => Expense::typeMap()[$expense->type] ?? 'Unknown',
                         'amount' => $expense->amount,
                         'approved_amount' => $expense->approved_amount,
-                        'status' => $expense->statusName(),
+                        'status' => Expense::statusMap()[$expense->status] ?? 'Unknown',
                         'images' => $expense->images,
                         'meta_data' => collect($expense->meta_data ?? [])
                             ->except(['Resubmitted_expense_ids'])
@@ -453,30 +388,26 @@ class ExpenseController extends Controller
                                     return [
                                         'id' => $exp->id,
                                         'date' => $exp->date,
-                                        'type' => $exp->typeName(),
+                                        'type' => Expense::typeMap()[$exp->type] ?? 'Unknown',
                                         'amount' => $exp->amount,
-                                        'status' => $exp->statusName(),
+                                        'status' => Expense::statusMap()[$exp->status] ?? 'Unknown',
                                         'remarks' => $exp->remarks,
                                         'meta_data' => collect($exp->meta_data ?? [])
-                                            ->except(['history', 'Resubmitted_expense_ids']) // 🚀 also remove from history results
+                                            ->except(['Resubmitted_expense_ids'])
                                             ->toArray(),
-                                        'images' => $exp->images->map(function ($img) {
-                                            return ['path' => $img->path];
-                                        })->toArray(),
+                                        'images' => $exp->images->map(fn($img) => ['path' => $img->path])->toArray(),
                                         'location' => $exp->location,
                                     ];
                                 })
-                                ->toArray()
-                            : []
+                                ->toArray() : []
                     ];
                 }),
+
             ];
         }
 
         return view('expenses.view', compact('expenseGroups'));
     }
-
-
     public function checkStatus($id)
     {
         $expense = Expense::find($id);

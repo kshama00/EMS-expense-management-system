@@ -31,7 +31,6 @@ class Expense extends Model
         'date' => 'date:Y-m-d',
 
     ];
-    // Relationship: An expense has many images
     public function images()
     {
         return $this->hasMany(ExpenseImage::class);
@@ -45,38 +44,6 @@ class Expense extends Model
     public function approver()
     {
         return $this->belongsTo(User::class, 'approved_by');
-    }
-
-    // Expense.php
-    public function childResubmission()
-    {
-        return $this->hasOne(Expense::class, 'meta_data->previous_expense_id');
-    }
-    public function typeName()
-    {
-        $types = [
-            1 => 'Travel',
-            2 => 'Lodging',
-            3 => 'Food',
-            4 => 'Printing',
-            5 => 'Mobile',
-            6 => 'Miscellaneous',
-        ];
-
-        return $types[$this->type] ?? 'Unknown';
-    }
-
-    public function statusName()
-    {
-        $statuses = [
-            1 => 'Pending',
-            2 => 'Approved',
-            3 => 'Rejected',
-            4 => 'Partially Approved',
-            5 => 'Cancelled',
-        ];
-
-        return $statuses[$this->status] ?? 'Unknown';
     }
 
     public static function typeMap()
@@ -102,5 +69,17 @@ class Expense extends Model
         ];
     }
 
+    public static function subtypeMap()
+    {
+        return [
+            1 => '2_wheeler',
+            2 => 'bus',
+            3 => 'cab',
+            4 => 'train',
+
+        ];
+    }
+
 
 }
+

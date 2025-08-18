@@ -4,33 +4,33 @@ document.addEventListener("DOMContentLoaded", function () {
     const expenseRows = document.getElementById("expense-rows");
     const form = document.querySelector("form");
 
-    // Enhanced Duplicate Check System - SIMPLIFIED VERSION
+    //duplicate entry check function
     function attachDuplicateListeners(row) {
         const typeSelect = row.querySelector("select[name*='[type]']");
         const amountInput = row.querySelector("input[name*='[amount]']");
         const globalDateInput = document.getElementById("global-date");
 
-        let isCheckingDuplicate = false; // Prevent multiple simultaneous checks
+        let isCheckingDuplicate = false;
 
-        // Function to check for duplicates
+
         function checkDuplicateEntry(row, showWarning = true) {
             const type = row.querySelector("select[name*='[type]']")?.value;
             const amount = parseFloat(row.querySelector("input[name*='[amount]']")?.value);
             const globalDate = globalDateInput?.value;
 
-            // Skip check if any required field is empty or already checking
+
             if (!type || !amount || isNaN(amount) || !globalDate || isCheckingDuplicate) {
                 return Promise.resolve(true);
             }
 
-            // Check for duplicates in the current form (other rows)
+
             const formDuplicate = checkFormDuplicates(row, type, amount, globalDate);
 
             if (formDuplicate && showWarning) {
                 return showSimpleDuplicateWarning('form');
             }
 
-            // Check database duplicates via AJAX only if no form duplicate
+
             if (!formDuplicate) {
                 return checkDatabaseDuplicates(type, amount, globalDate, showWarning);
             }
@@ -38,7 +38,7 @@ document.addEventListener("DOMContentLoaded", function () {
             return Promise.resolve(true);
         }
 
-        // Check for duplicates within the current form
+
         function checkFormDuplicates(currentRow, type, amount, date) {
             const allRows = document.querySelectorAll('.expense-row');
 
@@ -55,7 +55,7 @@ document.addEventListener("DOMContentLoaded", function () {
             return false;
         }
 
-        // Check database for duplicates - SIMPLIFIED
+
         function checkDatabaseDuplicates(type, amount, date, showWarning = true) {
             if (isCheckingDuplicate) return Promise.resolve(true);
 
@@ -87,11 +87,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 .catch(error => {
                     isCheckingDuplicate = false;
                     console.error('Duplicate check error:', error);
-                    return true; // Allow submission on error
+                    return true;
                 });
         }
 
-        // SIMPLIFIED duplicate warning popup
+
         function showSimpleDuplicateWarning(source) {
             return new Promise((resolve) => {
                 Swal.fire({
@@ -104,7 +104,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     allowOutsideClick: false,
                 }).then((result) => {
                     if (!result.isConfirmed) {
-                        // Clear the fields if user chooses not to continue
+
                         const typeSelect = row.querySelector("select[name*='[type]']");
                         const amountInput = row.querySelector("input[name*='[amount]']");
                         if (typeSelect) typeSelect.value = '';
@@ -115,45 +115,44 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         }
 
-        // Add event listeners with debouncing
+
         let duplicateCheckTimeout;
 
         function debouncedDuplicateCheck() {
             clearTimeout(duplicateCheckTimeout);
             duplicateCheckTimeout = setTimeout(() => {
                 checkDuplicateEntry(row, true);
-            }, 800); // Increased delay to prevent multiple checks
+            }, 800);
         }
 
-        // Attach listeners to relevant fields
+
         if (typeSelect) {
             typeSelect.addEventListener('change', debouncedDuplicateCheck);
         }
 
         if (amountInput) {
             amountInput.addEventListener('blur', debouncedDuplicateCheck);
-            // Removed input listener to prevent too frequent checks
+
         }
 
-        // Also check when global date changes
+
         if (globalDateInput) {
             const globalDateChangeHandler = () => {
                 clearTimeout(duplicateCheckTimeout);
                 setTimeout(debouncedDuplicateCheck, 200);
             };
 
-            // Remove existing listener to avoid duplicates
+
             globalDateInput.removeEventListener('change', globalDateChangeHandler);
             globalDateInput.addEventListener('change', globalDateChangeHandler);
         }
 
-        // Store the check function for external use
+
         row._duplicateChecker = checkDuplicateEntry;
 
         return checkDuplicateEntry;
     }
 
-    // Save form data to localStorage
     function saveFormData() {
         const formData = {
             rowCount: document.querySelectorAll(".expense-row").length,
@@ -180,7 +179,7 @@ document.addEventListener("DOMContentLoaded", function () {
         localStorage.setItem("expensesData", JSON.stringify(formData));
     }
 
-    // Load form data from localStorage
+
     function loadFormData() {
         const savedData = localStorage.getItem("expensesData");
         if (!savedData) return;
@@ -190,12 +189,12 @@ document.addEventListener("DOMContentLoaded", function () {
             const currentRowCount = document.querySelectorAll(".expense-row").length;
             const neededRows = formData.rowCount || formData.rows.length;
 
-            // Create additional rows if needed
+
             for (let i = currentRowCount; i < neededRows; i++) {
                 addNewRow(false);
             }
 
-            // Fill data into rows
+
             formData.rows.forEach((rowData, index) => {
                 const row = document.querySelectorAll(".expense-row")[index];
                 if (!row) return;
@@ -217,7 +216,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    // Function to manage ONLY dynamic required attributes
+    // Function to manage only dynamic required attributes
     function updateRequiredFields(row) {
         const typeSelect = row.querySelector("select[name*='[type]']");
         const subtypeSelect = row.querySelector("select[name*='[subtype]']");
@@ -231,13 +230,12 @@ document.addEventListener("DOMContentLoaded", function () {
         const type = typeSelect?.value;
         const subtype = subtypeSelect?.value;
 
-        // Remove only the DYNAMIC required attributes (not the ones set in Blade)
         [fromLocationInput, toLocationInput,
             startReadingInput, endReadingInput, checkinInput, checkoutInput].forEach(input => {
                 if (input) input.removeAttribute('required');
             });
 
-        // Add dynamic required attributes based on type/subtype selection
+
         if (type === "Travel") {
             if (subtypeSelect) subtypeSelect.setAttribute('required', 'true');
 
@@ -260,7 +258,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (typeSelect) {
             typeSelect.addEventListener('change', function () {
                 if (this.value === 'Mobile') {
-                    // Check if mobile already exists in database
+
                     if (window.hasMobile) {
                         const isResubmission = window.resubmitData && window.resubmitData.type === 'Mobile';
 
@@ -270,7 +268,7 @@ document.addEventListener("DOMContentLoaded", function () {
                                 title: 'Mobile Expense Already Exists',
                                 text: 'You have already submitted a Mobile expense for this month. Only one Mobile expense is allowed per month.',
                             });
-                            this.value = ''; // Reset the selection
+                            this.value = '';
                             return;
                         }
                     }
@@ -291,12 +289,10 @@ document.addEventListener("DOMContentLoaded", function () {
                             title: 'Multiple Mobile Entries',
                             text: 'Only one Mobile expense is allowed per month. Please remove the other Mobile entry first.',
                         });
-                        this.value = ''; // Reset the selection
+                        this.value = '';
                         return;
                     }
                 }
-
-                // Check for duplicates when type changes (with delay to allow amount to be entered)
                 setTimeout(() => {
                     if (row._duplicateChecker) {
                         row._duplicateChecker(row, true);

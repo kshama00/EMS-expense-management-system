@@ -7,13 +7,13 @@
 @section('content')
     @php
         $today = \Carbon\Carbon::today()->format('Y-m-d');
-    @endphp
+
+     @endphp
     <div class="expenses-container">
         <div class="header-row">
             <h2>Expense List</h2>
             <a href="{{ route('expenses.create') }}" class="add-expense-button">Add Expenses</a>
         </div>
-
 
         <div class="form-actions">
             <form method="GET" action="{{ route('expenses.view') }}" class="filter-form">
@@ -109,7 +109,11 @@
                                         </td>
                                         <td>
                                             <button class="view-more-btn">View More</button>
-                                            @if ($expense['status'] === 'Pending')
+                                            @php
+                                                $currentMonth = \Carbon\Carbon::now()->format('Y-m');
+                                                $expenseMonth = \Carbon\Carbon::parse($group['date'])->format(format: 'Y-m'); 
+                                            @endphp
+                                            @if ($expense['status'] === 'Pending' && $currentMonth === $expenseMonth)
                                                 <a href="{{ route('expenses.create', ['resubmit_id' => $expense['id']]) }}"
                                                     class="resubmit-btn" style="display:inline-block; margin-top: 5px;">
                                                     Resubmit

@@ -70,7 +70,7 @@
                         <label>Subtype</label>
                         <select name="expenses[0][subtype]" {{ $isResubmitting ? 'disabled' : '' }}>
                             <option value="">Select subtype</option>
-                            <option value="2_wheeler" {{ $isResubmitting && ($prefillExpense['subtype'] ?? '') === '2_wheeler' ? 'selected' : '' }}>Bike</option>
+                            <option value="bike" {{ $isResubmitting && ($prefillExpense['subtype'] ?? '') === 'bike' ? 'selected' : '' }}>Bike</option>
                             <option value="bus" {{ $isResubmitting && ($prefillExpense['subtype'] ?? '') === 'bus' ? 'selected' : '' }}>Bus</option>
                             <option value="cab" {{ $isResubmitting && ($prefillExpense['subtype'] ?? '') === 'cab' ? 'selected' : '' }}>Cab</option>
                             <option value="train" {{ $isResubmitting && ($prefillExpense['subtype'] ?? '') === 'train' ? 'selected' : '' }}>Train</option>
@@ -82,13 +82,13 @@
                     </div>
                     {{-- Two Wheeler Fields --}}
                     <div class="form twoWheeler"
-                        style="{{ $isResubmitting && ($prefillExpense['subtype'] ?? '') === '2_wheeler' ? '' : 'display: none;' }}">
+                        style="{{ $isResubmitting && ($prefillExpense['subtype'] ?? '') === 'bike' ? '' : 'display: none;' }}">
                         <label>Start Reading</label>
                         <input type="number" name="expenses[0][start_reading]"
                             value="{{ $isResubmitting ? ($prefillExpense['start_reading'] ?? '') : '' }}" />
                     </div>
                     <div class="form twoWheeler"
-                        style="{{ $isResubmitting && ($prefillExpense['subtype'] ?? '') === '2_wheeler' ? '' : 'display: none;' }}">
+                        style="{{ $isResubmitting && ($prefillExpense['subtype'] ?? '') === 'bike' ? '' : 'display: none;' }}">
                         <label>End Reading</label>
                         <input type="number" name="expenses[0][end_reading]"
                             value="{{ $isResubmitting ? ($prefillExpense['end_reading'] ?? '') : '' }}" />
@@ -172,8 +172,6 @@
         window.remainingLimit = {{ $remaining ?? 0 }};
         window.hasMobile = {{ $hasMobile ? 'true' : 'false' }};
         window.existingExpenses = @json($existingExpenses ?? []);
-
-
     </script>
 
     @if(isset($prefillExpense))

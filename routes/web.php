@@ -23,8 +23,8 @@ use App\Http\Controllers\Admin\HeadquarterController;
 //     return view('welcome');
 // });
 
-Route::get('/', [ExpenseSummaryController::class, 'index'])->name('expenses.summary');
 
+Route::get('/', [ExpenseSummaryController::class, 'index'])->name('expenses.summary');
 Route::get('/expenses/create', [ExpenseController::class, 'create'])->name('expenses.create');
 Route::get('/expenses/view', [ExpenseController::class, 'index'])->name('expenses.view');
 Route::post('/expenses/store', [ExpenseController::class, 'store'])->name('expenses.store');

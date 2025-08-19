@@ -31,7 +31,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    // Initial location setup
     const locationInput = document.getElementById('location');
     if (locationInput) {
         getCurrentLocation(locationInput);
@@ -49,8 +48,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
             Swal.fire({
                 icon: 'warning',
-                title: 'Duplicate entry in the form!',
-                text: 'You have already entered this value.',
+                title: 'Duplicate Expense',
+                text: 'You have entered this expense before for the same date, type and amount.',
                 showCancelButton: true,
                 confirmButtonText: 'Yes, Continue',
                 cancelButtonText: 'Let Me Change',
@@ -59,16 +58,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 alertShown = false;
 
                 if (result.isConfirmed) {
-                    // User clicked "Yes, Continue" → do nothing
                 } else if (result.dismiss === Swal.DismissReason.cancel) {
-                    // User clicked "Let Me Change" → clear the input
                     if (inputElement) inputElement.value = '';
                 }
             });
         }
 
         function checkDuplicate() {
-            // Skip duplicate check on resubmission
             if (window.resubmitData) return;
 
             const type = typeSelect?.value;
@@ -78,25 +74,23 @@ document.addEventListener("DOMContentLoaded", function () {
             if (!type || !amount || isNaN(amount) || !date) return;
 
             let duplicateFound = false;
-
-            // 1️⃣ Check duplicates in the form
             const rows = document.querySelectorAll(".expense-row");
+
             for (let r of rows) {
                 if (r === row) continue;
                 const rType = r.querySelector("select[name*='[type]']")?.value;
                 const rAmount = parseFloat(r.querySelector("input[name*='[amount]']")?.value);
                 if (rType === type && rAmount === amount) {
                     duplicateFound = true;
-                    break; // stop further loop
+                    break;
                 }
             }
 
             if (duplicateFound) {
                 showDuplicateWarning(amountInput);
-                return; // ✅ skip database check if form duplicate exists
+                return;
             }
 
-            // 2️⃣ Check duplicates in the database
             fetch('/expenses/check-duplicate', {
                 method: 'POST',
                 headers: {
@@ -113,13 +107,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 });
         }
 
-        // Trigger when user leaves the field or changes type/date
         if (typeSelect) typeSelect.addEventListener('change', checkDuplicate);
         if (amountInput) amountInput.addEventListener('blur', checkDuplicate);
         if (dateInput) dateInput.addEventListener('change', checkDuplicate);
     }
-
-
 
     function saveFormData() {
         const formData = {
@@ -157,11 +148,9 @@ document.addEventListener("DOMContentLoaded", function () {
             const currentRowCount = document.querySelectorAll(".expense-row").length;
             const neededRows = formData.rowCount || formData.rows.length;
 
-
             for (let i = currentRowCount; i < neededRows; i++) {
                 addNewRow(false);
             }
-
 
             formData.rows.forEach((rowData, index) => {
                 const row = document.querySelectorAll(".expense-row")[index];
@@ -187,7 +176,6 @@ document.addEventListener("DOMContentLoaded", function () {
     function validateMobileSelection(row) {
         const typeSelect = row.querySelector("select[name*='[type]']");
         const amountInput = row.querySelector("input[name*='[amount]']");
-
 
         if (typeSelect) {
             typeSelect.addEventListener('change', function () {
@@ -247,7 +235,6 @@ document.addEventListener("DOMContentLoaded", function () {
         const twoWheelerFields = row.querySelectorAll(".twoWheeler");
         const fourWheelerFields = row.querySelectorAll(".fourWheeler");
 
-        // Inputs for required logic
         const fromLocationInput = row.querySelector("input[name*='[from_location]']");
         const toLocationInput = row.querySelector("input[name*='[to_location]']");
         const startReadingInput = row.querySelector("input[name*='[start_reading]']");
@@ -256,7 +243,6 @@ document.addEventListener("DOMContentLoaded", function () {
         const checkoutInput = row.querySelector("input[name*='[checkout_date]']");
 
         const globalDateInput = document.getElementById("global-date");
-
 
         function toggleFields() {
             const type = typeSelect?.value;
@@ -301,13 +287,18 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
 
                 if (checkoutInput) {
+
+                    let globalDate = new Date(globalDateInput.value);
+                    globalDate.setDate(globalDate.getDate() + 1);
+                    let nextDay = globalDate.toISOString().split('T')[0];
+                    checkoutInput.value = nextDay;
                     checkoutInput.min = globalDateInput.value;
                 }
             } else if (type === "Travel") {
                 travelFields.forEach(el => el.style.display = "block");
                 if (subtypeSelect) subtypeSelect.setAttribute('required', 'true');
 
-                if (subtype === "2_wheeler") {
+                if (subtype === "bike") {
                     twoWheelerFields.forEach(el => el.style.display = "block");
                     if (startReadingInput) startReadingInput.setAttribute('required', 'true');
                     if (endReadingInput) endReadingInput.setAttribute('required', 'true');
@@ -351,7 +342,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 span.style.lineHeight = "1";
                 input.parentElement.appendChild(span);
             }
-
             return span;
         }
 
@@ -373,7 +363,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
             let hasError = false;
 
-            // Reset custom validation errors
             [startError, endError, amountError, attachmentError, checkinError, checkoutError].forEach(span => {
                 if (span) {
                     span.style.display = "none";
@@ -382,7 +371,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
             });
 
-            // No negative numbers
             if (!isNaN(start) && start < 0) {
                 startError.textContent = "Start reading cannot be negative.";
                 startError.style.display = "block";
@@ -408,7 +396,7 @@ document.addEventListener("DOMContentLoaded", function () {
             // Amount calculation validation for 2-wheeler
             if (!isNaN(start) && !isNaN(end) && !isNaN(amount)) {
                 const subtypeSelect = row.querySelector("select[name*='[subtype]']");
-                if (typeSelect?.value === "Travel" && subtypeSelect?.value === "2_wheeler") {
+                if (typeSelect?.value === "Travel" && subtypeSelect?.value === "bike") {
                     const expectedAmount = (end - start) * 3;
                     if (amount !== expectedAmount) {
                         amountError.textContent = `Expected calculated amount is ₹${expectedAmount}`;
@@ -449,7 +437,6 @@ document.addEventListener("DOMContentLoaded", function () {
             return !hasError;
         }
 
-        // Add event listeners for custom validation
         [startInput, endInput, amountInput, attachmentInput, checkinInput, checkoutInput].forEach(input => {
             if (input) {
                 input.addEventListener("input", validateFields);
@@ -460,8 +447,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
         return validateFields;
     }
-
-    // Replace your existing addNewRow function with this updated version:
 
     function addNewRow(shouldSave = true) {
         const expenseRows = document.getElementById("expense-rows");
@@ -485,7 +470,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 input.value = "";
             }
 
-            // Auto-fill date and location
             if (input.name.includes('[date]')) {
                 const globalDate = document.getElementById("global-date")?.value;
                 input.value = globalDate || new Date().toISOString().split("T")[0];
@@ -497,14 +481,12 @@ document.addEventListener("DOMContentLoaded", function () {
                 getCurrentLocation(input);
             }
 
-            // Reset readonly and styling
             input.readOnly = false;
             input.style.backgroundColor = '';
             input.removeAttribute('min');
             input.removeAttribute('max');
         });
 
-        // Setup file input list
         const fileNameList = newRow.querySelector(".file-names");
         if (fileNameList) {
             fileNameList.id = `selected_files_${currentIndex}`;
@@ -516,7 +498,6 @@ document.addEventListener("DOMContentLoaded", function () {
             bindFileInput(fileInput, currentIndex);
         }
 
-        // Show delete button and assign proper click handler
         const deleteBtn = newRow.querySelector(".remove-row-btn");
         if (deleteBtn) {
             deleteBtn.style.display = currentIndex > 0 ? "flex" : "none";
@@ -534,9 +515,6 @@ document.addEventListener("DOMContentLoaded", function () {
         return newRow;
     }
 
-
-
-    // Enhanced file input handling
     document.querySelectorAll(".file-input").forEach((input, index) => {
         bindFileInput(input, index);
     });
@@ -547,7 +525,6 @@ document.addEventListener("DOMContentLoaded", function () {
         input.addEventListener("change", function () {
             const newFiles = Array.from(this.files);
 
-            // Check file limit
             if (selectedFiles.length + newFiles.length > 2) {
                 Swal.fire({
                     icon: 'error',
@@ -616,13 +593,11 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    // Apply to existing rows
     document.querySelectorAll(".expense-row").forEach(row => {
         handleTypeChange(row);
         bindValidation(row);
     });
 
-    // Add row event listener
     if (addRow) {
         addRow.addEventListener("click", function (e) {
             e.preventDefault();
@@ -630,7 +605,6 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Auto-save functionality
     let saveTimeout;
     function debouncedSave() {
         clearTimeout(saveTimeout);
@@ -649,11 +623,10 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    // Enhanced form submission with immediate resubmit redirect
     if (form) {
         form.addEventListener("submit", async function (e) {
             const resubmitId = window?.resubmitData?.id;
-            const isResubmission = !!resubmitId; // Check if this is a resubmission
+            const isResubmission = !!resubmitId;
 
             if (!allowSubmit) {
                 e.preventDefault();
@@ -665,7 +638,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 let total = 0;
                 let valid = true;
 
-                // Run custom validation on all rows
                 document.querySelectorAll(".expense-row").forEach((row, index) => {
                     const validateRow = bindValidation(row);
                     const isRowValid = validateRow();
@@ -687,8 +659,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
                     if (!isNaN(amount)) total += amount;
 
-                    // Additional 2-wheeler validation
-                    if (type === "Travel" && subtype === "2_wheeler") {
+                    if (type === "Travel" && subtype === "bike") {
                         if (!isNaN(start) && !isNaN(end)) {
                             const expected = (end - start) * 3;
                             if (amount !== expected) {
@@ -703,7 +674,6 @@ document.addEventListener("DOMContentLoaded", function () {
                         }
                     }
 
-                    // Add hidden date field
                     if (!hiddenDate) {
                         hiddenDate = document.createElement("input");
                         hiddenDate.type = "hidden";
@@ -713,13 +683,11 @@ document.addEventListener("DOMContentLoaded", function () {
                     hiddenDate.value = document.getElementById("global-date").value;
                 });
 
-                // Check HTML5 validation first
                 if (!form.checkValidity()) {
                     form.reportValidity();
                     return;
                 }
 
-                // If custom validation failed
                 if (!valid) {
                     Swal.fire({
                         icon: 'error',
@@ -736,13 +704,10 @@ document.addEventListener("DOMContentLoaded", function () {
                     return;
                 }
 
-                // Replace the proceedToSubmit function and the resubmission logic in your existing code
-
                 const proceedToSubmit = () => {
                     localStorage.removeItem("expensesData");
 
                     if (isResubmission) {
-                        // Show confirmation dialog for resubmission
                         Swal.fire({
                             icon: 'question',
                             title: 'Confirm Resubmission',
@@ -754,7 +719,6 @@ document.addEventListener("DOMContentLoaded", function () {
                             allowEscapeKey: false,
                         }).then((result) => {
                             if (result.isConfirmed) {
-                                // User confirmed resubmission
                                 sessionStorage.setItem('resubmit_success', JSON.stringify({
                                     message: 'Expense resubmitted successfully!',
                                     timestamp: Date.now()
@@ -798,17 +762,14 @@ document.addEventListener("DOMContentLoaded", function () {
                                         });
                                     });
                             }
-                            // If user cancels, do nothing - form submission is cancelled
                         });
 
                     } else {
-                        // Normal submission
                         allowSubmit = true;
                         form.requestSubmit();
                     }
                 };
 
-                // Also update the resubmission logic to handle the limit check with confirmation
                 if (isResubmission) {
                     if (total > remainingLimit) {
                         let hasRemark = false;
@@ -828,7 +789,6 @@ document.addEventListener("DOMContentLoaded", function () {
                             return;
                         }
                     }
-                    // Call proceedToSubmit which will now show confirmation dialog
                     proceedToSubmit();
                     return;
                 }
@@ -953,7 +913,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     console.log('Remaining limit:', remainingLimit);
 
-    // Handle resubmit data FIRST
     if (window.resubmitData) {
         console.log(window.resubmitData);
         const firstRow = document.querySelector(".expense-row");

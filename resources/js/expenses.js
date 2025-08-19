@@ -1,7 +1,5 @@
 document.addEventListener('DOMContentLoaded', function () {
-    /* -------------------------------
-       Toggle expense details button
-    --------------------------------*/
+
     document.querySelectorAll('.toggle-details-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
             const details = btn.closest('.expense-card').querySelector('.expense-details');
@@ -15,9 +13,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    /* -------------------------------
-       Table "View More" rows
-    --------------------------------*/
     document.querySelectorAll('.view-more-btn').forEach(function (button) {
         button.addEventListener('click', function () {
             const currentRow = button.closest('tr');
@@ -34,9 +29,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    /* -------------------------------
-       Expense card status summary
-    --------------------------------*/
     document.querySelectorAll('.expense-card').forEach(function (card) {
         const statusCells = card.querySelectorAll('tbody tr[data-status]');
         const statuses = Array.from(statusCells).map(row => row.dataset.status?.toLowerCase().trim());
@@ -61,9 +53,6 @@ document.addEventListener('DOMContentLoaded', function () {
         return str.charAt(0).toUpperCase() + str.slice(1);
     }
 
-    /* -------------------------------
-       History modal functions
-    --------------------------------*/
     function openHistoryModal(historyData) {
         const modal = document.getElementById('historyModal');
         const content = document.getElementById('historyContent');
@@ -78,10 +67,8 @@ document.addEventListener('DOMContentLoaded', function () {
         document.body.style.overflow = 'auto';
     }
 
-    // Expose globally (for inline onclick)
     window.closeHistoryModal = closeHistoryModal;
 
-    // Close on outside click
     window.addEventListener('click', function (event) {
         const modal = document.getElementById('historyModal');
         if (event.target === modal) {
@@ -89,22 +76,17 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Close on Escape key
     document.addEventListener('keydown', function (event) {
         if (event.key === 'Escape') {
             closeHistoryModal();
         }
     });
 
-    // Close button
     const closeBtn = document.querySelector('.history-close');
     if (closeBtn) {
         closeBtn.addEventListener('click', closeHistoryModal);
     }
 
-    /* -------------------------------
-       History modal button triggers
-    --------------------------------*/
     document.querySelectorAll('.history-view-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
             let historyData;
@@ -118,9 +100,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    /* -------------------------------
-       Generate modal content
-    --------------------------------*/
     function generateHistoryHTML(historyData) {
         if (!historyData || !Array.isArray(historyData) || historyData.length === 0) {
             return '<p>No history available for this expense.</p>';

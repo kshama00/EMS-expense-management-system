@@ -1,6 +1,5 @@
 <?php
 
-// app/Http/Controllers/ExpenseSummaryController.php
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
@@ -13,6 +12,9 @@ class ExpenseSummaryController extends Controller
     public function index(Request $request)
     {
         $userId = 1;
+        $page = (int) $request->get('page', 1);
+        $monthsPerPage = 3;
+        $maxMonths = 9;
 
         $monthlyData = Expense::select(
             DB::raw("DATE_FORMAT(date, '%Y-%m') as month"),
@@ -22,8 +24,16 @@ class ExpenseSummaryController extends Controller
             ->where('user_id', $userId)
             ->groupBy('month')
             ->orderBy('month', 'desc')
+            ->limit($maxMonths)
             ->get();
 
-        return view('expenses.expenseSummary', compact('monthlyData'));
+        $chunks = $monthlyData->chunk($monthsPerPage);
+        $currentChunk = $chunks->get($page - 1, collect());
+
+        return view('expenses.expenseSummary', [
+            'monthlyData' => $currentChunk,
+            'totalPages' => $chunks->count(),
+            'currentPage' => $page,
+        ]);
     }
 }

@@ -31,17 +31,15 @@ class ExpenseController extends Controller
             ->whereBetween('date', [$startOfMonth, $endOfMonth])
             ->exists();
 
-        // Get type and subtype mappings - FIXED: Define these variables first
         $types = Expense::typeMap();
         $subtypes = Expense::subtypeMap();
 
-        // Get existing expenses for duplicate checking with more details
         $existingExpenses = Expense::where('user_id', $userId)
             ->whereBetween('date', [$startOfMonth, $endOfMonth])
-            ->where('status', '!=', '5') // Exclude cancelled expenses
+            ->where('status', '!=', '5')
             ->orderBy('date', 'desc')
             ->get()
-            ->map(function ($expense) use ($types) { // FIXED: Use the $types variable here
+            ->map(function ($expense) use ($types) {
                 return [
                     'id' => $expense->id,
                     'type' => $types[$expense->type] ?? 'Unknown',
@@ -59,7 +57,6 @@ class ExpenseController extends Controller
         if ($resubmitId) {
             $prefillExpense = Expense::with('images')->findOrFail($resubmitId)->toArray();
 
-            // FIXED: Now $types and $subtypes are properly defined
             if (isset($prefillExpense['type'])) {
                 $prefillExpense['type'] = $types[$prefillExpense['type']] ?? $prefillExpense['type'];
             }
@@ -75,8 +72,6 @@ class ExpenseController extends Controller
 
         return view('expenses.create', compact('usedAmount', 'maxLimit', 'remaining', 'prefillExpense', 'resubmitId', 'hasMobile', 'existingExpenses'));
     }
-
-
     public function store(Request $request)
     {
         $expenses = $request->input('expenses', []);
@@ -123,7 +118,6 @@ class ExpenseController extends Controller
                     ->where('date', $expenseData['date'])
                     ->where('status', '!=', '5');
 
-                // Exclude the original expense if this is a resubmission
                 if ($originalId) {
                     $duplicateQuery->where('id', '!=', $originalId);
                 }
@@ -137,20 +131,17 @@ class ExpenseController extends Controller
                 }
             }
 
-            // Additional validation for lodging dates
             if ($expenseData['type'] === 'Lodging') {
                 $globalDate = $expenseData['date'];
                 $checkinDate = $expenseData['checkin_date'] ?? null;
                 $checkoutDate = $expenseData['checkout_date'] ?? null;
 
-                // Validate checkin date is same as global date
                 if ($checkinDate !== $globalDate) {
                     return redirect()->back()
                         ->withErrors(["expenses.$index.checkin_date" => "Check-in date must be same as expense date"])
                         ->withInput();
                 }
 
-                // Validate checkout date is same or +1 day
                 if ($checkoutDate) {
                     $globalDateObj = Carbon::parse($globalDate);
                     $checkoutDateObj = Carbon::parse($checkoutDate);
@@ -199,8 +190,8 @@ class ExpenseController extends Controller
                 $meta['subtype'] = $expenseData['subtype'];
             }
 
-            if ($type === 1) { // Travel
-                if (($expenseData['subtype'] ?? '') === '2_wheeler') {
+            if ($type === 1) {
+                if (($expenseData['subtype'] ?? '') === 'bike') {
                     $meta['start_reading'] = $expenseData['start_reading'];
                     $meta['end_reading'] = $expenseData['end_reading'];
 
@@ -217,10 +208,10 @@ class ExpenseController extends Controller
                     $meta['from_location'] = $expenseData['from_location'];
                     $meta['to_location'] = $expenseData['to_location'];
                 }
-            } elseif ($type === 2) { // Lodging
+            } elseif ($type === 2) {
                 $meta['checkin_date'] = $expenseData['checkin_date'];
                 $meta['checkout_date'] = $expenseData['checkout_date'];
-            } elseif ($type === 5) { // Mobile
+            } elseif ($type === 5) {
                 $amount = 250;
             }
 
@@ -254,7 +245,6 @@ class ExpenseController extends Controller
 
     public function checkDuplicate(Request $request)
     {
-        // FIXED: Define $typeMap variable here
         $typeMap = array_flip(Expense::typeMap());
 
         $request->validate([
@@ -309,7 +299,6 @@ class ExpenseController extends Controller
         $typeMap = array_flip(Expense::typeMap());
         $statusMap = array_flip(Expense::statusMap());
 
-        // If month is passed (format: Y-m), filter that month only
         if ($request->filled('month')) {
             try {
                 $startOfMonth = Carbon::createFromFormat('Y-m', $request->month)->startOfMonth();
@@ -318,15 +307,12 @@ class ExpenseController extends Controller
             } catch (\Exception $e) {
                 return redirect()->back()->with('error', 'Invalid month format.');
             }
-        }
-        // If no month is passed, default to current month
-        elseif (!$request->filled('date_from') && !$request->filled('date_to')) {
+        } elseif (!$request->filled('date_from') && !$request->filled('date_to')) {
             $startOfMonth = Carbon::now()->startOfMonth();
             $today = Carbon::now();
             $query->whereBetween('date', [$startOfMonth, $today]);
         }
 
-        // Date range filters (overrides month if both given)
         if ($request->filled('date_from')) {
             $query->whereDate('date', '>=', $request->date_from);
         }

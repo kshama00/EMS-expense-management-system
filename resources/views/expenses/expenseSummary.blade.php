@@ -8,9 +8,8 @@
     <div class="container mt-4">
         <h2>My Monthly Expense Summary</h2>
 
-        <div class="button-row">
+        <div class="button-row mb-3">
             <a href="{{ route('expenses.create') }}" class="btn-add">Add Expense</a>
-            <a href="{{ route('expenses.view') }}" class="btn-view">View Expenses</a>
         </div>
 
         <table class="table table-bordered">
@@ -25,9 +24,15 @@
             <tbody>
                 @forelse ($monthlyData as $row)
                     <tr>
-                        <td data-label="Month">{{ \Carbon\Carbon::createFromFormat('Y-m', $row->month)->format('F Y') }}</td>
-                        <td data-label="Submitted Amount">₹{{ number_format($row->submitted_amount, 2) }}</td>
-                        <td data-label="Approved Amount">₹{{ number_format($row->approved_amount, 2) }}</td>
+                        <td data-label="Month">
+                            {{ \Carbon\Carbon::createFromFormat('Y-m', $row->month)->format('F Y') }}
+                        </td>
+                        <td data-label="Submitted Amount">
+                            ₹{{ number_format($row->submitted_amount, 2) }}
+                        </td>
+                        <td data-label="Approved Amount">
+                            ₹{{ number_format($row->approved_amount, 2) }}
+                        </td>
                         <td data-label="Action">
                             <a href="{{ route('expenses.view', ['month' => $row->month]) }}"
                                 class="btn btn-sm btn-outline-primary">
@@ -42,5 +47,15 @@
                 @endforelse
             </tbody>
         </table>
+
+        <!-- Pagination Buttons -->
+        <div class="pagination-buttons">
+            @for($i = 1; $i <= $totalPages; $i++)
+                <a href="{{ route('expenses.summary', ['page' => $i]) }}"
+                    class="page-btn {{ $i == $currentPage ? 'active' : '' }}">
+                    {{ $i }}
+                </a>
+            @endfor
+        </div>
     </div>
 @endsection

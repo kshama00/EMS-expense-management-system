@@ -71,20 +71,16 @@ class Expense extends Model
     public static function subtypeMap()
     {
         return [
-            1 => '2_wheeler',
+            1 => 'bike',
             2 => 'bus',
             3 => 'cab',
             4 => 'train',
         ];
     }
-
-    // ADDED: Method to get status name
     public function statusName()
     {
         return self::statusMap()[$this->status] ?? 'Unknown';
     }
-
-    // ADDED: Method to get type name
     public function typeName()
     {
         return self::typeMap()[$this->type] ?? 'Unknown';

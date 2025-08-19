@@ -34,7 +34,7 @@
             <input type="date" id="global-date" name="global_date" min="{{ $firstOfMonth }}" max="{{ $today }}"
                 value="{{ $isResubmitting ? \Carbon\Carbon::parse($prefillExpense['date'])->format('Y-m-d') : old('global_date', $today) }}"
                 {{ $isResubmitting ? 'readonly' : '' }} onclick="this.showPicker()" style="cursor: pointer;" />
-        </div>
+        </div><br>
 
         <form id="expense-form" action="{{ route('expenses.store') }}" method="POST" enctype="multipart/form-data">
             @csrf

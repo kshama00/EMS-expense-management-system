@@ -13,12 +13,12 @@ body {
     padding-top: 20px;
 }
 
-/* Heading and Add Button in One Line */
 .expenses-container h2 {
     font-size: 24px;
     margin: 0;
 }
 
+/* Header Row - Heading left, Button right */
 .header-row {
     display: flex;
     justify-content: space-between;
@@ -39,7 +39,6 @@ body {
     text-decoration: none;
     transition: background-color 0.2s;
     white-space: nowrap;
-
 }
 
 .add-expense-button:hover {
@@ -76,18 +75,16 @@ body {
     margin-bottom: 6px;
 }
 
+/* Consistent Input Styling */
 .filter-field input,
-.filter-field select {
-    padding: 8px;
+.filter-field select,
+input[type="date"] {
+    padding: 10px;
     border: 1px solid #ccc;
     border-radius: 6px;
     width: 100%;
-}
-
-/* Date Width Same as Card */
-input[type="date"] {
-    max-width: 1000px;
-    width: 100%;
+    font-size: 14px;
+    box-sizing: border-box;
 }
 
 /* Filter Buttons */
@@ -98,12 +95,13 @@ input[type="date"] {
 
 .apply-button,
 .reset-button {
-    padding: 8px 14px;
+    padding: 10px 14px;
     font-weight: 600;
     border: none;
     border-radius: 6px;
     cursor: pointer;
     text-decoration: none;
+    font-size: 14px;
 }
 
 .apply-button {
@@ -147,56 +145,64 @@ input[type="date"] {
     font-weight: 500;
 }
 
-/* View Button */
-.view-more-btn {
-    background-color: #6b7280;
-    color: white;
+/* Action Buttons */
+.view-more-btn,
+.toggle-details-btn,
+.resubmit-btn {
     border: none;
-    padding: 6px 10px;
+    padding: 6px 12px;
     border-radius: 6px;
     cursor: pointer;
     text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.view-more-btn {
+    background-color: #6b7280;
+    color: white;
 }
 
 .view-more-btn:hover {
     background-color: #4b5563;
 }
 
-/* Toggle Button */
 .toggle-details-btn {
     background-color: #2563eb;
     color: white;
-    border: none;
-    padding: 6px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    text-decoration: none;
 }
 
 .toggle-details-btn:hover {
     background-color: #1d4ed8;
 }
 
-/* Resubmit */
 .resubmit-btn {
     display: inline-block;
     margin-top: 6px;
     background-color: #f59e0b;
     color: white;
-    padding: 6px 10px;
-    border-radius: 6px;
-    text-decoration: none;
 }
 
 .resubmit-btn:hover {
     background-color: #d97706;
 }
 
+/* Table Container */
+.table-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
 /* Table */
 .expenses-table {
+    min-width: 600px;
     width: 100%;
     border-collapse: collapse;
-    margin-top: 10px;
+    margin: 0;
 }
 
 .expenses-table th,
@@ -211,13 +217,12 @@ input[type="date"] {
     font-weight: bold;
 }
 
-/* No underline for attachment links */
-td a {
+.expenses-table td a {
     text-decoration: none;
     color: #1d4ed8;
 }
 
-/* Metadata */
+/* View More Content */
 .view-more-row ul {
     padding-left: 20px;
     margin-top: 6px;
@@ -228,43 +233,29 @@ td a {
     margin-top: 6px;
 }
 
-/* Responsive Styling */
-/* Responsive Styling */
-@media (max-width: 640px) {
-    .header-row {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-    }
+/* History Button */
+.history-button-container {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px solid #e5e7eb;
+}
 
-    .filter-form {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 12px;
-        /* Reduced vertical space */
-    }
+.history-view-btn {
+    background: #2196F3;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background-color 0.2s ease;
+}
 
-    .filter-fields {
-        flex-direction: column;
-        gap: 10px;
-        /* Reduced gap between inputs */
-    }
-
-    .filter-field {
-        flex: 1 1 auto;
-        margin-bottom: 0;
-        /* Remove any margin if present */
-    }
-
-    .filter-actions {
-        justify-content: flex-start;
-        gap: 10px;
-    }
-
-    .expense-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
+.history-view-btn:hover {
+    background: #1976D2;
 }
 
 /* Modal Styles */
@@ -361,10 +352,6 @@ td a {
     flex: 1;
 }
 
-.history-images {
-    margin-top: 10px;
-}
-
 .history-images a {
     display: inline-block;
     margin-right: 10px;
@@ -380,85 +367,66 @@ td a {
     background: #c8e6c9;
 }
 
-.history-view-btn {
-    background: #2196F3;
-    color: white;
-    border: none;
-    padding: 6px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-}
-
-.history-view-btn:hover {
-    background: #1976D2;
-}
-
 /* Scrollbar Styling */
+.table-container::-webkit-scrollbar,
 .history-content::-webkit-scrollbar {
     width: 8px;
+    height: 8px;
 }
 
+.table-container::-webkit-scrollbar-track,
 .history-content::-webkit-scrollbar-track {
     background: #f1f1f1;
     border-radius: 4px;
 }
 
+.table-container::-webkit-scrollbar-thumb,
 .history-content::-webkit-scrollbar-thumb {
     background: #888;
     border-radius: 4px;
 }
 
+.table-container::-webkit-scrollbar-thumb:hover,
 .history-content::-webkit-scrollbar-thumb:hover {
     background: #555;
 }
 
-/* Add this CSS to your view.css file or in a <style> section */
-
-/* Table container with horizontal scroll */
-.table-container {
-    width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    /* Smooth scrolling on iOS */
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    margin: 10px 0;
-}
-
-/* Ensure table doesn't shrink below minimum width */
-.expenses-table {
-    min-width: 600px;
-    /* Adjust based on your content needs */
-    width: 100%;
-    border-collapse: collapse;
-    margin: 0;
-}
-
-/* Style the scrollbar for better visibility */
-.table-container::-webkit-scrollbar {
-    height: 8px;
-}
-
-.table-container::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 4px;
-}
-
-.table-container::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 4px;
-}
-
-.table-container::-webkit-scrollbar-thumb:hover {
-    background: #555;
-}
-
-/* Mobile specific adjustments */
+/* Responsive Design */
 @media (max-width: 768px) {
+    .header-row {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .filter-form {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .filter-fields {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .filter-field {
+        flex: 1 1 auto;
+    }
+
+    .filter-actions {
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .expense-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
     .table-container {
         margin: 5px -10px;
-        /* Extend slightly beyond container on mobile */
         border-left: none;
         border-right: none;
         border-radius: 0;
@@ -474,15 +442,18 @@ td a {
         white-space: nowrap;
     }
 
-    /* Make action buttons smaller on mobile */
     .view-more-btn,
     .resubmit-btn {
         font-size: 12px;
         padding: 4px 8px;
     }
+
+    .history-view-btn {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
 }
 
-/* Very small screens */
 @media (max-width: 480px) {
     .expenses-table {
         min-width: 500px;
@@ -493,61 +464,7 @@ td a {
     .expenses-table td {
         padding: 6px 4px;
     }
-}
 
-
-/* History button alignment */
-.history-button-container {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 15px;
-    padding-top: 10px;
-    border-top: 1px solid #e5e7eb;
-}
-
-.history-view-btn {
-    background: #2196F3;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 500;
-    transition: background-color 0.2s ease;
-    margin-left: auto;
-    /* This pushes it to the right */
-}
-
-.history-view-btn:hover {
-    background: #1976D2;
-}
-
-/* Alternative approach - if you want all content in the expanded row to be right-aligned */
-.view-more-content {
-    text-align: left;
-}
-
-.view-more-content .history-view-btn {
-    float: right;
-    clear: both;
-    margin-top: 15px;
-}
-
-/* Mobile responsive adjustments */
-@media (max-width: 768px) {
-    .history-button-container {
-        margin-top: 12px;
-        padding-top: 8px;
-    }
-
-    .history-view-btn {
-        padding: 6px 12px;
-        font-size: 12px;
-    }
-}
-
-@media (max-width: 480px) {
     .history-view-btn {
         padding: 5px 10px;
         font-size: 11px;

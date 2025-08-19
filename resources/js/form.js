@@ -335,19 +335,26 @@ document.addEventListener("DOMContentLoaded", function () {
         const attachmentInput = row.querySelector("input[name*='[attachments]']");
         const checkinInput = row.querySelector("input[name*='[checkin_date]']");
         const checkoutInput = row.querySelector("input[name*='[checkout_date]']");
-
         function getErrorSpan(input, className) {
-            let span = input?.parentElement.querySelector("." + className);
-            if (!span && input) {
+            if (!input) return null;
+
+            let span = input.parentElement.querySelector("." + className);
+
+            if (!span) {
                 span = document.createElement("small");
                 span.className = className;
                 span.style.color = "#eb2c2cff";
-                span.style.display = "none";
+                span.style.display = "block";
+                span.style.margin = "0";
+                span.style.padding = "0";
                 span.style.fontSize = "12px";
+                span.style.lineHeight = "1";
                 input.parentElement.appendChild(span);
             }
+
             return span;
         }
+
 
         const startError = getErrorSpan(startInput, "start-reading-error");
         const endError = getErrorSpan(endInput, "end-reading-error");
@@ -729,58 +736,102 @@ document.addEventListener("DOMContentLoaded", function () {
                     return;
                 }
 
+                // Replace the proceedToSubmit function and the resubmission logic in your existing code
+
                 const proceedToSubmit = () => {
                     localStorage.removeItem("expensesData");
 
                     if (isResubmission) {
-                        sessionStorage.setItem('resubmit_success', JSON.stringify({
-                            message: 'Expense resubmitted successfully!',
-                            timestamp: Date.now()
-                        }));
+                        // Show confirmation dialog for resubmission
+                        Swal.fire({
+                            icon: 'question',
+                            title: 'Confirm Resubmission',
+                            html: `Your total is ₹${total.toFixed(2)}.<br><br>Do you want to resubmit this expense?`,
+                            showCancelButton: true,
+                            confirmButtonText: 'Yes, Resubmit',
+                            cancelButtonText: 'Cancel',
+                            allowOutsideClick: false,
+                            allowEscapeKey: false,
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                // User confirmed resubmission
+                                sessionStorage.setItem('resubmit_success', JSON.stringify({
+                                    message: 'Expense resubmitted successfully!',
+                                    timestamp: Date.now()
+                                }));
 
-                        const Toast = Swal.mixin({
-                            toast: true,
-                            position: 'top-end',
-                            showConfirmButton: false,
-                            timer: 2000,
-                            timerProgressBar: true,
-                        });
-
-                        Toast.fire({
-                            icon: 'success',
-                            title: 'Expense Resubmitted Successfully!'
-                        });
-
-                        const formData = new FormData(form);
-
-                        fetch(form.action, {
-                            method: 'POST',
-                            body: formData,
-                            headers: {
-                                'X-Requested-With': 'XMLHttpRequest',
-                            }
-                        })
-                            .then(response => {
-                                if (response.ok) {
-                                    window.location.href = '/expenses/view';
-                                } else {
-                                    throw new Error('Submission failed');
-                                }
-                            })
-                            .catch(error => {
-                                console.error('Resubmission error:', error);
-                                Swal.fire({
-                                    icon: 'error',
-                                    title: 'Submission Error',
-                                    text: 'There was an error resubmitting your expense. Please try again.'
+                                const Toast = Swal.mixin({
+                                    toast: true,
+                                    position: 'top-end',
+                                    showConfirmButton: false,
+                                    timer: 2000,
+                                    timerProgressBar: true,
                                 });
-                            });
+
+                                Toast.fire({
+                                    icon: 'success',
+                                    title: 'Expense Resubmitted Successfully!'
+                                });
+
+                                const formData = new FormData(form);
+
+                                fetch(form.action, {
+                                    method: 'POST',
+                                    body: formData,
+                                    headers: {
+                                        'X-Requested-With': 'XMLHttpRequest',
+                                    }
+                                })
+                                    .then(response => {
+                                        if (response.ok) {
+                                            window.location.href = '/expenses/view';
+                                        } else {
+                                            throw new Error('Submission failed');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        console.error('Resubmission error:', error);
+                                        Swal.fire({
+                                            icon: 'error',
+                                            title: 'Submission Error',
+                                            text: 'There was an error resubmitting your expense. Please try again.'
+                                        });
+                                    });
+                            }
+                            // If user cancels, do nothing - form submission is cancelled
+                        });
 
                     } else {
+                        // Normal submission
                         allowSubmit = true;
                         form.requestSubmit();
                     }
                 };
+
+                // Also update the resubmission logic to handle the limit check with confirmation
+                if (isResubmission) {
+                    if (total > remainingLimit) {
+                        let hasRemark = false;
+                        const allRemarks = document.querySelectorAll("input[name*='[remarks]']");
+                        allRemarks.forEach(input => {
+                            if (input.value.trim() !== "") hasRemark = true;
+                        });
+
+                        if (!hasRemark) {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Remark Required',
+                                text: `Total expense ₹${total.toFixed(2)} exceeds ₹${remainingLimit}. Please add a remark before resubmitting.`,
+                                allowOutsideClick: false,
+                            });
+                            allRemarks[0]?.focus();
+                            return;
+                        }
+                    }
+                    // Call proceedToSubmit which will now show confirmation dialog
+                    proceedToSubmit();
+                    return;
+                }
 
                 console.log('used amount', total);
 

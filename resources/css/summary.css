@@ -1,3 +1,10 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f9fafb;
+    margin: 0;
+    padding: 20px;
+}
+
 /* Page Heading */
 h2 {
     font-size: 26px;
@@ -7,30 +14,63 @@ h2 {
     text-align: center;
 }
 
+/* Button Row */
+.button-row {
+    display: flex;
+    justify-content: flex-start;
+    gap: 16px;
+    margin: 16px 0;
+    flex-wrap: wrap;
+}
+
+.button-row a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 8px;
+    text-decoration: none;
+    background-color: #2563eb;
+    color: #fff;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.button-row a:hover {
+    background-color: #1d4ed8;
+    transform: translateY(-1px);
+}
+
 /* Table Styling */
 .table {
     width: 100%;
+    max-width: 100%;
     border-collapse: collapse;
     background-color: #fdfdfd;
     font-size: 14px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.03);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    overflow: hidden;
 }
 
 .table thead th {
     background-color: #f0f4f8;
     color: #1a1a1a;
     font-weight: 600;
-    padding: 12px;
-    border: 1px solid #dee2e6;
+    padding: 15px 12px;
+    border: 1px solid #cbd5e0;
     text-align: center;
 }
 
 .table tbody td {
-    padding: 10px;
+    padding: 12px;
     text-align: center;
-    border: 1px solid #dee2e6;
+    border: 1px solid #cbd5e0;
     vertical-align: middle;
     color: #333;
+    line-height: 1.5;
 }
 
 /* Amount Styling */
@@ -38,13 +78,6 @@ h2 {
 .table tbody td:nth-child(3) {
     font-weight: 500;
     color: #004085;
-}
-
-/* No Data Row */
-.table tbody td.text-center {
-    padding: 25px 0;
-    font-style: italic;
-    color: #777;
 }
 
 /* Action Button */
@@ -65,13 +98,38 @@ h2 {
     color: #fff;
 }
 
-/* ===============================
-   Responsive Design for Mobile
-   =============================== */
+/* No Data Row */
+.text-center {
+    padding: 25px 0 !important;
+    font-style: italic;
+    color: #777;
+}
+
+/* Mobile Responsive Design */
 @media (max-width: 768px) {
+    body {
+        padding: 5px;
+    }
+
+    .container {
+        padding: 0 5px !important;
+    }
+
+    /* Button Row Mobile */
+    .button-row {
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .button-row a {
+        width: auto;
+        padding: 8px 16px;
+        font-size: 13px;
+    }
+
+    /* Table Mobile */
     .table thead {
         display: none;
-        /* Hide table header on small screens */
     }
 
     .table,
@@ -80,6 +138,7 @@ h2 {
     .table td {
         display: block;
         width: 100%;
+        box-sizing: border-box;
     }
 
     .table tr {
@@ -87,28 +146,30 @@ h2 {
         background: #fff;
         border-radius: 6px;
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-        padding: 10px;
+        padding: 12px;
+        border: none;
+        width: calc(100% - 10px);
+        margin-left: 5px;
+        margin-right: 5px;
     }
 
     .table td {
-        text-align: right;
-        padding: 8px 10px;
+        text-align: left;
+        padding: 6px 0;
         border: none;
         border-bottom: 1px solid #eee;
         position: relative;
+        padding-left: 35%;
+        word-wrap: break-word;
     }
 
-    .table td::before {
-        content: attr(data-label);
+    .table td:before {
+        content: attr(data-label) ":";
         position: absolute;
-        left: 10px;
-        width: 50%;
+        left: 0;
+        width: 30%;
         font-weight: 600;
         color: #555;
         text-align: left;
-    }
-
-    .table td:last-child {
-        border-bottom: none;
     }
 }

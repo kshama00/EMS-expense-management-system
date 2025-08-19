@@ -1,51 +1,272 @@
+/* Base Styling */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f9fafb;
+    margin: 0;
+    padding: 20px;
+}
+
+
+
+/* Page Heading */
+.expenses-container h2 {
+    font-size: 24px;
+    margin: 0;
+    font-weight: 600;
+    color: #1e2a38;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+/* Header row for buttons or filters */
+.header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+/* Buttons */
+.add-expense-button,
+.view-more-btn,
+.toggle-details-btn,
+.resubmit-btn {
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    text-decoration: none;
+    font-weight: 600;
+    transition: background-color 0.2s;
+}
+
+/* Add Expense */
+.add-expense-button {
+    background-color: #2563eb;
+    color: white;
+    padding: 10px 18px;
+}
+
+.add-expense-button:hover {
+    background-color: #1d4ed8;
+}
+
+/* View / Toggle Buttons */
+.view-more-btn,
+.toggle-details-btn {
+    background-color: #2563eb;
+    color: white;
+    padding: 6px 12px;
+}
+
+.view-more-btn:hover,
+.toggle-details-btn:hover {
+    background-color: #1d4ed8;
+}
+
+/* Resubmit */
+.resubmit-btn {
+    background-color: #f59e0b;
+    color: white;
+    padding: 6px 10px;
+}
+
+.resubmit-btn:hover {
+    background-color: #d97706;
+}
+
+/* Filter Form */
+.filter-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.filter-field {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 180px;
+}
+
+.filter-field label {
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.filter-field input,
+.filter-field select {
+    padding: 8px;
+    border: 1px solid #000;
+    /* black border */
+    border-radius: 6px;
+    width: 100%;
+}
+
+/* Apply / Reset Buttons */
+.apply-button {
+    background-color: #10b981;
+    color: white;
+    padding: 8px 14px;
+}
+
+.apply-button:hover {
+    background-color: #059669;
+}
+
+.reset-button {
+    background-color: #2563eb;
+    color: white;
+    padding: 8px 14px;
+}
+
+.reset-button:hover {
+    background-color: #1d4ed8;
+}
+
+/* Expense Card */
+.expense-card {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.05);
+    border: 1px solid #000;
+}
+
+/* Expense Header / Summary */
+.expense-header {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.expense-summary {
+    font-weight: 500;
+    font-size: 14px;
+}
+
+/* Status Badge */
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 5px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* Table */
+.expenses-table,
 .admin-table {
     width: 100%;
     border-collapse: collapse;
     margin-top: 10px;
-    font-size: 0.95rem;
-    background-color: white;
-    border: 1px solid #121313;
-    border-radius: 8px;
-    overflow: hidden;
+    min-width: 600px;
 }
 
-.admin-table thead {
-    background-color: #f1f3f5;
-}
-
+.expenses-table th,
+.expenses-table td,
 .admin-table th,
 .admin-table td {
-    padding: 10px 14px;
-    border-bottom: 1px solid #dee2e6;
+    padding: 10px;
+    border: 1px solid #000;
+    /* black border */
     text-align: left;
-    vertical-align: middle;
 }
 
+.expenses-table th,
 .admin-table th {
+    background-color: #e5e7eb;
     font-weight: 600;
-    font-size: 0.85rem;
-    color: #343a40;
 }
 
-
-
-.admin-table td a {
-    color: #007bff;
+/* Links */
+td a {
     text-decoration: none;
+    color: #1d4ed8;
 }
 
-.action-select-global action {
-    right: 10px;
-    position: absolute;
+td a:hover {
+    text-decoration: underline;
 }
 
-.view-more-btn,
-.expense-view-more,
-.toggle-details-btn {
-    background-color: #007bff;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    cursor: pointer;
-    border-radius: 5px;
+/* View More / Metadata Row */
+.view-more-row ul {
+    padding-left: 20px;
+    margin-top: 6px;
+}
+
+.view-more-row strong {
+    display: inline-block;
+    margin-top: 6px;
+}
+
+/* Date Expense Card */
+.date-expense-card {
+    border: 1px solid #000;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 10px;
+    background-color: #fff;
+}
+
+.date-expense-card input[type="checkbox"] {
+    margin-right: 6px;
+}
+
+/* Responsive Styling */
+@media (max-width: 768px) {
+    .header-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .filter-form {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .expense-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .expenses-table,
+    .admin-table {
+        font-size: 14px;
+    }
+
+    .view-more-btn,
+    .resubmit-btn {
+        font-size: 12px;
+        padding: 4px 8px;
+    }
+}
+
+@media (max-width: 480px) {
+
+    .expenses-table,
+    .admin-table {
+        min-width: 500px;
+        font-size: 12px;
+    }
+
+    .expenses-table th,
+    .expenses-table td,
+    .admin-table th,
+    .admin-table td {
+        padding: 6px 4px;
+    }
+
+    .view-more-btn,
+    .resubmit-btn {
+        font-size: 11px;
+        padding: 4px 6px;
+    }
 }

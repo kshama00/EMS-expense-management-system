@@ -8,7 +8,6 @@
         integrity="sha512-..." crossorigin="anonymous" referrerpolicy="no-referrer" />
 
     <title>Expense Module</title>
-    @vite(['resources/css/app.css'])
     @yield('styles')
 </head>
 

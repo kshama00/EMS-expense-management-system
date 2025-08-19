@@ -393,7 +393,7 @@ class ExpenseController extends Controller
                                 ->map(function ($exp) {
                                     return [
                                         'id' => $exp->id,
-                                        'date' => $exp->date,
+                                        'date' => Carbon::parse($exp->date)->format('Y-m-d'),
                                         'type' => Expense::typeMap()[$exp->type] ?? 'Unknown',
                                         'amount' => $exp->amount,
                                         'status' => Expense::statusMap()[$exp->status] ?? 'Unknown',
